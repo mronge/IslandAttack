@@ -1,0 +1,10 @@
+pub const WINDOW_TITLE: &str = "Tiger Prototype";
+pub const VIEW_WIDTH: f32 = 320.0;
+pub const VIEW_HEIGHT: f32 = 180.0;
+pub const TILE_SIZE: f32 = 16.0;
+pub const FIXED_DT: f32 = 1.0 / 60.0;
+pub const LEVEL_PATH: &str = "levels/prototype.json";
+pub const JEEP_SPEED: f32 = 72.0;
+pub const ENEMY_SPEED: f32 = 36.0;
+pub const BULLET_SPEED: f32 = 180.0;
+pub const EXTRA_LIFE_EVERY: u32 = 4;
