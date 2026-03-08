@@ -31,7 +31,7 @@ fn draw_tiles(assets: &Assets, world: &World, top_left: Vec2, editor_mode: bool)
             let tile = &world.map.tiles[y * world.map.width + x];
             let screen_pos = world.map.tile_center(tile_pos) - top_left - vec2(8.0, 8.0);
 
-            draw_sprite(
+            draw_metasprite(
                 assets,
                 tile_sprite_name(tile.kind, editor_mode),
                 vec2(screen_pos.x.floor(), screen_pos.y.floor()),
@@ -79,23 +79,13 @@ fn draw_entities(assets: &Assets, world: &World, top_left: Vec2) {
         if matches!(hostage.state, HostageState::Rescued) {
             continue;
         }
-        let pos = hostage.pos - top_left;
-        draw_sprite(
-            assets,
-            "hostage",
-            vec2((pos.x - 8.0).floor(), (pos.y - 8.0).floor()),
-            WHITE,
-        );
+        let pos = world_to_screen(hostage.pos, top_left);
+        draw_metasprite_centered(assets, "hostage", pos, WHITE);
     }
 
     for enemy in &world.enemies {
-        let pos = enemy.pos - top_left;
-        draw_sprite(
-            assets,
-            "enemy_soldier",
-            vec2((pos.x - 8.0).floor(), (pos.y - 8.0).floor()),
-            WHITE,
-        );
+        let pos = world_to_screen(enemy.pos, top_left);
+        draw_metasprite_centered(assets, "enemy_soldier", pos, WHITE);
     }
 
     for bullet in &world.bullets {
@@ -110,48 +100,52 @@ fn draw_entities(assets: &Assets, world: &World, top_left: Vec2) {
     }
 
     for explosion in &world.explosions {
-        let pos = explosion.pos - top_left;
-        draw_sprite(
-            assets,
-            "explosion",
-            vec2((pos.x - 8.0).floor(), (pos.y - 8.0).floor()),
-            WHITE,
-        );
+        let pos = world_to_screen(explosion.pos, top_left);
+        draw_metasprite_centered(assets, "explosion", pos, WHITE);
     }
 
-    let pos = world.player.pos - top_left;
+    let pos = world_to_screen(world.player.pos, top_left);
     let jeep_tint = if world.player.invuln_timer > 0.0 {
         Color::new(1.0, 1.0, 1.0, 0.7)
     } else {
         WHITE
     };
-    let jeep_draw_pos = vec2((pos.x - 8.0).floor(), (pos.y - 8.0).floor());
-    draw_sprite(
+    let shadow_pos = pos + vec2(1.0, 1.0);
+    draw_metasprite_centered(
         assets,
         jeep_sprite_name(world.player.dir),
-        jeep_draw_pos + vec2(1.0, 1.0),
+        shadow_pos,
         Color::new(0.0, 0.0, 0.0, 0.45),
     );
-    draw_sprite(
-        assets,
-        jeep_sprite_name(world.player.dir),
-        jeep_draw_pos,
-        jeep_tint,
-    );
+    draw_metasprite_centered(assets, jeep_sprite_name(world.player.dir), pos, jeep_tint);
 }
 
-fn draw_sprite(assets: &Assets, sprite_name: &str, pos: Vec2, tint: Color) {
-    draw_texture_ex(
-        assets.texture(),
-        pos.x,
-        pos.y,
-        tint,
-        DrawTextureParams {
-            source: Some(assets.region(sprite_name)),
-            dest_size: Some(vec2(TILE_SIZE, TILE_SIZE)),
-            ..Default::default()
-        },
-    );
+fn draw_metasprite(assets: &Assets, sprite_name: &str, pos: Vec2, tint: Color) {
+    let meta = assets.metasprite(sprite_name);
+    for part in &meta.parts {
+        let region = assets.subtile_region(&part.tile);
+        draw_texture_ex(
+            assets.texture(),
+            (pos.x + part.x).floor(),
+            (pos.y + part.y).floor(),
+            tint,
+            DrawTextureParams {
+                source: Some(region),
+                dest_size: Some(vec2(region.w, region.h)),
+                ..Default::default()
+            },
+        );
+    }
+}
+
+fn draw_metasprite_centered(assets: &Assets, sprite_name: &str, center: Vec2, tint: Color) {
+    let meta = assets.metasprite(sprite_name);
+    let top_left = vec2(center.x - meta.w * 0.5, center.y - meta.h * 0.5);
+    draw_metasprite(assets, sprite_name, top_left, tint);
+}
+
+fn world_to_screen(world_pos: Vec2, top_left: Vec2) -> Vec2 {
+    vec2((world_pos.x - top_left.x).floor(), (world_pos.y - top_left.y).floor())
 }
 
 fn tile_sprite_name(kind: TileKind, editor_mode: bool) -> &'static str {

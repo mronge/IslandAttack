@@ -1,0 +1,580 @@
+{
+  "grass_tile": {
+    "w": 16,
+    "h": 16,
+    "parts": [
+      {
+        "tile": "grass_tile_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "grass_tile_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "grass_tile_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "grass_tile_1_1",
+        "x": 8,
+        "y": 8
+      }
+    ]
+  },
+  "road_tile": {
+    "w": 16,
+    "h": 16,
+    "parts": [
+      {
+        "tile": "road_tile_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "road_tile_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "road_tile_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "road_tile_1_1",
+        "x": 8,
+        "y": 8
+      }
+    ]
+  },
+  "water_tile": {
+    "w": 16,
+    "h": 16,
+    "parts": [
+      {
+        "tile": "water_tile_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "water_tile_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "water_tile_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "water_tile_1_1",
+        "x": 8,
+        "y": 8
+      }
+    ]
+  },
+  "wall_tile": {
+    "w": 16,
+    "h": 16,
+    "parts": [
+      {
+        "tile": "wall_tile_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "wall_tile_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "wall_tile_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "wall_tile_1_1",
+        "x": 8,
+        "y": 8
+      }
+    ]
+  },
+  "cage_tile": {
+    "w": 16,
+    "h": 16,
+    "parts": [
+      {
+        "tile": "cage_tile_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "cage_tile_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "cage_tile_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "cage_tile_1_1",
+        "x": 8,
+        "y": 8
+      }
+    ]
+  },
+  "extraction_tile": {
+    "w": 16,
+    "h": 16,
+    "parts": [
+      {
+        "tile": "extraction_tile_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "extraction_tile_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "extraction_tile_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "extraction_tile_1_1",
+        "x": 8,
+        "y": 8
+      }
+    ]
+  },
+  "enemy_soldier": {
+    "w": 16,
+    "h": 16,
+    "parts": [
+      {
+        "tile": "enemy_soldier_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "enemy_soldier_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "enemy_soldier_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "enemy_soldier_1_1",
+        "x": 8,
+        "y": 8
+      }
+    ]
+  },
+  "hostage": {
+    "w": 16,
+    "h": 16,
+    "parts": [
+      {
+        "tile": "hostage_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "hostage_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "hostage_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "hostage_1_1",
+        "x": 8,
+        "y": 8
+      }
+    ]
+  },
+  "explosion": {
+    "w": 16,
+    "h": 16,
+    "parts": [
+      {
+        "tile": "explosion_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "explosion_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "explosion_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "explosion_1_1",
+        "x": 8,
+        "y": 8
+      }
+    ]
+  },
+  "jeep_up": {
+    "w": 32,
+    "h": 32,
+    "parts": [
+      {
+        "tile": "jeep_up_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "jeep_up_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "jeep_up_2_0",
+        "x": 16,
+        "y": 0
+      },
+      {
+        "tile": "jeep_up_3_0",
+        "x": 24,
+        "y": 0
+      },
+      {
+        "tile": "jeep_up_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "jeep_up_1_1",
+        "x": 8,
+        "y": 8
+      },
+      {
+        "tile": "jeep_up_2_1",
+        "x": 16,
+        "y": 8
+      },
+      {
+        "tile": "jeep_up_3_1",
+        "x": 24,
+        "y": 8
+      },
+      {
+        "tile": "jeep_up_0_2",
+        "x": 0,
+        "y": 16
+      },
+      {
+        "tile": "jeep_up_1_2",
+        "x": 8,
+        "y": 16
+      },
+      {
+        "tile": "jeep_up_2_2",
+        "x": 16,
+        "y": 16
+      },
+      {
+        "tile": "jeep_up_3_2",
+        "x": 24,
+        "y": 16
+      },
+      {
+        "tile": "jeep_up_0_3",
+        "x": 0,
+        "y": 24
+      },
+      {
+        "tile": "jeep_up_1_3",
+        "x": 8,
+        "y": 24
+      },
+      {
+        "tile": "jeep_up_2_3",
+        "x": 16,
+        "y": 24
+      },
+      {
+        "tile": "jeep_up_3_3",
+        "x": 24,
+        "y": 24
+      }
+    ]
+  },
+  "jeep_right": {
+    "w": 32,
+    "h": 32,
+    "parts": [
+      {
+        "tile": "jeep_right_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "jeep_right_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "jeep_right_2_0",
+        "x": 16,
+        "y": 0
+      },
+      {
+        "tile": "jeep_right_3_0",
+        "x": 24,
+        "y": 0
+      },
+      {
+        "tile": "jeep_right_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "jeep_right_1_1",
+        "x": 8,
+        "y": 8
+      },
+      {
+        "tile": "jeep_right_2_1",
+        "x": 16,
+        "y": 8
+      },
+      {
+        "tile": "jeep_right_3_1",
+        "x": 24,
+        "y": 8
+      },
+      {
+        "tile": "jeep_right_0_2",
+        "x": 0,
+        "y": 16
+      },
+      {
+        "tile": "jeep_right_1_2",
+        "x": 8,
+        "y": 16
+      },
+      {
+        "tile": "jeep_right_2_2",
+        "x": 16,
+        "y": 16
+      },
+      {
+        "tile": "jeep_right_3_2",
+        "x": 24,
+        "y": 16
+      },
+      {
+        "tile": "jeep_right_0_3",
+        "x": 0,
+        "y": 24
+      },
+      {
+        "tile": "jeep_right_1_3",
+        "x": 8,
+        "y": 24
+      },
+      {
+        "tile": "jeep_right_2_3",
+        "x": 16,
+        "y": 24
+      },
+      {
+        "tile": "jeep_right_3_3",
+        "x": 24,
+        "y": 24
+      }
+    ]
+  },
+  "jeep_down": {
+    "w": 32,
+    "h": 32,
+    "parts": [
+      {
+        "tile": "jeep_down_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "jeep_down_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "jeep_down_2_0",
+        "x": 16,
+        "y": 0
+      },
+      {
+        "tile": "jeep_down_3_0",
+        "x": 24,
+        "y": 0
+      },
+      {
+        "tile": "jeep_down_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "jeep_down_1_1",
+        "x": 8,
+        "y": 8
+      },
+      {
+        "tile": "jeep_down_2_1",
+        "x": 16,
+        "y": 8
+      },
+      {
+        "tile": "jeep_down_3_1",
+        "x": 24,
+        "y": 8
+      },
+      {
+        "tile": "jeep_down_0_2",
+        "x": 0,
+        "y": 16
+      },
+      {
+        "tile": "jeep_down_1_2",
+        "x": 8,
+        "y": 16
+      },
+      {
+        "tile": "jeep_down_2_2",
+        "x": 16,
+        "y": 16
+      },
+      {
+        "tile": "jeep_down_3_2",
+        "x": 24,
+        "y": 16
+      },
+      {
+        "tile": "jeep_down_0_3",
+        "x": 0,
+        "y": 24
+      },
+      {
+        "tile": "jeep_down_1_3",
+        "x": 8,
+        "y": 24
+      },
+      {
+        "tile": "jeep_down_2_3",
+        "x": 16,
+        "y": 24
+      },
+      {
+        "tile": "jeep_down_3_3",
+        "x": 24,
+        "y": 24
+      }
+    ]
+  },
+  "jeep_left": {
+    "w": 32,
+    "h": 32,
+    "parts": [
+      {
+        "tile": "jeep_left_0_0",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "tile": "jeep_left_1_0",
+        "x": 8,
+        "y": 0
+      },
+      {
+        "tile": "jeep_left_2_0",
+        "x": 16,
+        "y": 0
+      },
+      {
+        "tile": "jeep_left_3_0",
+        "x": 24,
+        "y": 0
+      },
+      {
+        "tile": "jeep_left_0_1",
+        "x": 0,
+        "y": 8
+      },
+      {
+        "tile": "jeep_left_1_1",
+        "x": 8,
+        "y": 8
+      },
+      {
+        "tile": "jeep_left_2_1",
+        "x": 16,
+        "y": 8
+      },
+      {
+        "tile": "jeep_left_3_1",
+        "x": 24,
+        "y": 8
+      },
+      {
+        "tile": "jeep_left_0_2",
+        "x": 0,
+        "y": 16
+      },
+      {
+        "tile": "jeep_left_1_2",
+        "x": 8,
+        "y": 16
+      },
+      {
+        "tile": "jeep_left_2_2",
+        "x": 16,
+        "y": 16
+      },
+      {
+        "tile": "jeep_left_3_2",
+        "x": 24,
+        "y": 16
+      },
+      {
+        "tile": "jeep_left_0_3",
+        "x": 0,
+        "y": 24
+      },
+      {
+        "tile": "jeep_left_1_3",
+        "x": 8,
+        "y": 24
+      },
+      {
+        "tile": "jeep_left_2_3",
+        "x": 16,
+        "y": 24
+      },
+      {
+        "tile": "jeep_left_3_3",
+        "x": 24,
+        "y": 24
+      }
+    ]
+  }
+}
