@@ -33,7 +33,7 @@ fn draw_tiles(assets: &Assets, world: &World, top_left: Vec2, editor_mode: bool)
 
             draw_metasprite(
                 assets,
-                tile_sprite_name(tile.kind, editor_mode),
+                &tile_sprite_name(tile.kind, tile_pos, editor_mode),
                 vec2(screen_pos.x.floor(), screen_pos.y.floor()),
                 WHITE,
             );
@@ -145,22 +145,26 @@ fn draw_metasprite_centered(assets: &Assets, sprite_name: &str, center: Vec2, ti
 }
 
 fn world_to_screen(world_pos: Vec2, top_left: Vec2) -> Vec2 {
-    vec2((world_pos.x - top_left.x).floor(), (world_pos.y - top_left.y).floor())
+    vec2(
+        (world_pos.x - top_left.x).floor(),
+        (world_pos.y - top_left.y).floor(),
+    )
 }
 
-fn tile_sprite_name(kind: TileKind, editor_mode: bool) -> &'static str {
+fn tile_sprite_name(kind: TileKind, tile_pos: IVec2, editor_mode: bool) -> String {
+    let variant = ((tile_pos.x.rem_euclid(2) * 2) + tile_pos.y.rem_euclid(2)) as usize;
     match kind {
-        TileKind::Grass => "grass_tile",
-        TileKind::Road => "road_tile",
-        TileKind::Water => "water_tile",
-        TileKind::Wall => "wall_tile",
-        TileKind::Rubble => "road_tile",
-        TileKind::HostageCage => "cage_tile",
-        TileKind::Extraction => "extraction_tile",
-        TileKind::EnemySpawn if editor_mode => "wall_tile",
-        TileKind::EnemySpawn => "grass_tile",
-        TileKind::PlayerSpawn if editor_mode => "road_tile",
-        TileKind::PlayerSpawn => "grass_tile",
+        TileKind::Grass => format!("ground_{}", variant),
+        TileKind::Road => format!("road_{}", variant),
+        TileKind::Water => format!("water_{}", variant % 2),
+        TileKind::Wall => format!("wall_{}", variant % 2),
+        TileKind::Rubble => format!("road_{}", variant),
+        TileKind::HostageCage => "cage_tile".to_owned(),
+        TileKind::Extraction => "extraction_tile".to_owned(),
+        TileKind::EnemySpawn if editor_mode => "wall_0".to_owned(),
+        TileKind::EnemySpawn => format!("ground_{}", variant),
+        TileKind::PlayerSpawn if editor_mode => "road_0".to_owned(),
+        TileKind::PlayerSpawn => format!("ground_{}", variant),
     }
 }
 
