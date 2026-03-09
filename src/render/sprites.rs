@@ -1,6 +1,6 @@
 use crate::assets::Assets;
 use crate::constants::{TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH};
-use crate::entities::{Direction, HostageState};
+use crate::entities::{BulletKind, BulletOwner, Direction, EnemyKind, HostageState};
 use crate::world::{TileKind, World};
 use macroquad::prelude::*;
 
@@ -124,18 +124,46 @@ fn draw_entities(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     }
 
     for enemy in &world.enemies {
-        draw_sprite_centered(
-            assets,
-            "enemy_soldier",
-            world_to_screen(enemy.render_pos(alpha), top_left),
-            WHITE,
-        );
+        let pos = world_to_screen(enemy.render_pos(alpha), top_left);
+        let to_player = world.player.render_pos(alpha) - enemy.render_pos(alpha);
+        let rotation = enemy_rotation(to_player);
+        draw_sprite_centered_rotated(assets, enemy_sprite_name(enemy.kind), pos, rotation, WHITE);
     }
 
     for bullet in &world.bullets {
         let pos = world_to_screen(bullet.render_pos(alpha), top_left);
-        draw_circle(pos.x, pos.y, 10.0, color_u8!(245, 245, 230, 255));
-        draw_circle(pos.x, pos.y, 4.0, color_u8!(255, 190, 90, 255));
+        match bullet.kind {
+            BulletKind::Normal => {
+                let (outer, inner) = match bullet.owner {
+                    BulletOwner::Player => {
+                        (color_u8!(245, 245, 230, 255), color_u8!(255, 190, 90, 255))
+                    }
+                    BulletOwner::Enemy => {
+                        (color_u8!(255, 210, 210, 255), color_u8!(255, 80, 60, 255))
+                    }
+                };
+                draw_circle(pos.x, pos.y, 10.0, outer);
+                draw_circle(pos.x, pos.y, 4.0, inner);
+            }
+            BulletKind::Rocket => {
+                let dir = if bullet.vel.length_squared() > 0.0 {
+                    bullet.vel.normalize()
+                } else {
+                    vec2(1.0, 0.0)
+                };
+                let tail = pos - dir * 18.0;
+                draw_line(
+                    tail.x,
+                    tail.y,
+                    pos.x,
+                    pos.y,
+                    8.0,
+                    color_u8!(120, 48, 32, 220),
+                );
+                draw_circle(pos.x, pos.y, 11.0, color_u8!(255, 228, 190, 255));
+                draw_circle(pos.x, pos.y, 6.0, color_u8!(255, 106, 48, 255));
+            }
+        }
     }
 
     for explosion in &world.explosions {
@@ -207,6 +235,29 @@ fn draw_sprite_centered(assets: &Assets, sprite_name: &str, center: Vec2, tint: 
     let sprite = assets.sprite(sprite_name);
     let top_left = center - sprite.anchor;
     draw_sprite_top_left(assets, sprite_name, top_left, tint);
+}
+
+fn draw_sprite_centered_rotated(
+    assets: &Assets,
+    sprite_name: &str,
+    center: Vec2,
+    rotation: f32,
+    tint: Color,
+) {
+    let sprite = assets.sprite(sprite_name);
+    let top_left = center - sprite.anchor;
+    draw_texture_ex(
+        &sprite.texture,
+        top_left.x,
+        top_left.y,
+        tint,
+        DrawTextureParams {
+            dest_size: Some(sprite.draw_size),
+            rotation,
+            pivot: Some(center),
+            ..Default::default()
+        },
+    );
 }
 
 fn world_to_screen(world_pos: Vec2, top_left: Vec2) -> Vec2 {
@@ -298,5 +349,20 @@ fn jeep_sprite_name(dir: Direction) -> &'static str {
         Direction::Down => "jeep_down",
         Direction::Left => "jeep_left",
         Direction::Right => "jeep_right",
+    }
+}
+
+fn enemy_sprite_name(kind: EnemyKind) -> &'static str {
+    match kind {
+        EnemyKind::Commando => "enemy_commando",
+        EnemyKind::Rocketeer => "enemy_rocketeer",
+    }
+}
+
+fn enemy_rotation(to_player: Vec2) -> f32 {
+    if to_player.length_squared() <= 0.001 {
+        0.0
+    } else {
+        to_player.y.atan2(to_player.x) + std::f32::consts::FRAC_PI_2
     }
 }

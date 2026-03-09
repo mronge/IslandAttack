@@ -1,5 +1,10 @@
-use crate::constants::{BULLET_SPEED, JEEP_ACCEL, JEEP_BRAKE, TILE_SIZE};
-use crate::entities::{Bullet, Direction, EnemyState, Explosion, HostageState, rider_offset};
+use crate::constants::{
+    BULLET_SPEED, JEEP_ACCEL, JEEP_BRAKE, ROCKET_DAMAGE, ROCKET_SPEED, ROCKETEER_FIRE_COOLDOWN,
+    ROCKETEER_RANGE_MAX, ROCKETEER_RANGE_MIN, TILE_SIZE,
+};
+use crate::entities::{
+    Bullet, BulletOwner, Direction, EnemyKind, EnemyState, Explosion, HostageState, rider_offset,
+};
 use crate::input::PlayerCommand;
 use crate::world::{TileKind, World, rect_from_center};
 use macroquad::prelude::*;
@@ -66,8 +71,10 @@ impl World {
 
         if command.fire && self.player.fire_cooldown <= 0.0 {
             let muzzle = self.player.pos + self.player.dir.as_vec() * (TILE_SIZE * 0.8);
-            self.bullets
-                .push(Bullet::new(muzzle, self.player.dir.as_vec() * BULLET_SPEED));
+            self.bullets.push(Bullet::player(
+                muzzle,
+                self.player.dir.as_vec() * BULLET_SPEED,
+            ));
             self.player.fire_cooldown = 0.12;
         }
     }
@@ -82,20 +89,50 @@ impl World {
 
             let mut hit = false;
 
-            for enemy in &mut self.enemies {
-                if enemy.hp > 0
-                    && enemy.pos.distance(bullet.pos) <= bullet.radius + TILE_SIZE * 0.25
-                {
-                    enemy.hp -= i32::from(bullet.damage);
-                    hit = true;
-                    self.explosions.push(Explosion::new(bullet.pos));
-                    break;
-                }
-            }
+            match bullet.owner {
+                BulletOwner::Player => {
+                    for enemy in &mut self.enemies {
+                        if enemy.hp > 0
+                            && enemy.pos.distance(bullet.pos) <= bullet.radius + TILE_SIZE * 0.25
+                        {
+                            enemy.hp -= i32::from(bullet.damage);
+                            hit = true;
+                            self.explosions.push(Explosion::new(bullet.pos));
+                            break;
+                        }
+                    }
 
-            if !hit && self.map.damage_at_world(bullet.pos, bullet.damage) {
-                hit = true;
-                self.explosions.push(Explosion::new(bullet.pos));
+                    if !hit {
+                        for turret in &mut self.turrets {
+                            if turret.hp > 0
+                                && turret.pos.distance(bullet.pos)
+                                    <= bullet.radius + TILE_SIZE * 0.45
+                            {
+                                turret.hp -= i32::from(bullet.damage);
+                                hit = true;
+                                self.explosions.push(Explosion::new(bullet.pos));
+                                break;
+                            }
+                        }
+                    }
+
+                    if !hit && self.map.damage_at_world(bullet.pos, bullet.damage) {
+                        hit = true;
+                        self.explosions.push(Explosion::new(bullet.pos));
+                    }
+                }
+                BulletOwner::Enemy => {
+                    if self.player.pos.distance(bullet.pos) <= bullet.radius + TILE_SIZE * 0.35
+                        && self.player.invuln_timer <= 0.0
+                    {
+                        hit = true;
+                        self.explosions.push(Explosion::new(bullet.pos));
+                        self.damage_player();
+                    } else if self.map.damage_at_world(bullet.pos, 0) {
+                        hit = true;
+                        self.explosions.push(Explosion::new(bullet.pos));
+                    }
+                }
             }
 
             if !hit && bullet.ttl > 0.0 {
@@ -125,19 +162,55 @@ impl World {
                 continue;
             }
 
+            enemy.fire_cooldown = (enemy.fire_cooldown - dt).max(0.0);
+
             let to_player = self.player.pos - enemy.pos;
             let distance = to_player.length();
-
-            if distance < TILE_SIZE * 5.0 {
-                enemy.state = EnemyState::Chase;
-                let step = dominant_axis_step(to_player);
-                let attempt = enemy.pos + step * enemy.speed * dt;
-                let rect = rect_from_center(attempt, enemy.size());
-                if !self.map.collides_rect(rect) {
-                    enemy.pos = attempt;
+            match enemy.kind {
+                EnemyKind::Commando => {
+                    if distance < TILE_SIZE * 5.0 {
+                        enemy.state = EnemyState::Chase;
+                        let step = dominant_axis_step(to_player);
+                        let attempt = enemy.pos + step * enemy.speed * dt;
+                        let rect = rect_from_center(attempt, enemy.size());
+                        if !self.map.collides_rect(rect) {
+                            enemy.pos = attempt;
+                        }
+                    } else {
+                        enemy.state = EnemyState::Idle;
+                    }
                 }
-            } else {
-                enemy.state = EnemyState::Idle;
+                EnemyKind::Rocketeer => {
+                    if distance > ROCKETEER_RANGE_MAX {
+                        enemy.state = EnemyState::Chase;
+                        let step = dominant_axis_step(to_player);
+                        let attempt = enemy.pos + step * enemy.speed * dt;
+                        let rect = rect_from_center(attempt, enemy.size());
+                        if !self.map.collides_rect(rect) {
+                            enemy.pos = attempt;
+                        }
+                    } else if distance < ROCKETEER_RANGE_MIN {
+                        enemy.state = EnemyState::Retreat;
+                        let retreat = dominant_axis_step(-to_player);
+                        let attempt = enemy.pos + retreat * enemy.speed * dt;
+                        let rect = rect_from_center(attempt, enemy.size());
+                        if !self.map.collides_rect(rect) {
+                            enemy.pos = attempt;
+                        }
+                    } else {
+                        enemy.state = EnemyState::Attack;
+                        if enemy.fire_cooldown <= 0.0 && distance > 1.0 {
+                            let dir = to_player.normalize();
+                            let muzzle = enemy.pos + dir * (TILE_SIZE * 0.35);
+                            self.bullets.push(Bullet::rocket(
+                                muzzle,
+                                dir * ROCKET_SPEED,
+                                ROCKET_DAMAGE,
+                            ));
+                            enemy.fire_cooldown = ROCKETEER_FIRE_COOLDOWN;
+                        }
+                    }
+                }
             }
         }
 
@@ -150,6 +223,8 @@ impl World {
                 break;
             }
         }
+
+        self.update_turrets(dt);
     }
 
     fn update_hostages(&mut self, dt: f32) {
@@ -210,6 +285,8 @@ impl World {
 
     fn cleanup(&mut self) {
         self.enemies.retain(|enemy| enemy.hp > 0);
+        self.turrets
+            .retain(|turret| turret.hp > 0 && bunker_cluster_intact(&self.map, turret.home_tile));
         self.explosions.retain(|explosion| explosion.timer > 0.0);
     }
 
@@ -262,6 +339,40 @@ impl World {
             if matches!(hostage.state, HostageState::Riding { .. }) {
                 hostage.state = HostageState::Riding { slot };
                 slot += 1;
+            }
+        }
+    }
+}
+
+fn bunker_cluster_intact(map: &crate::world::TileMap, home_tile: IVec2) -> bool {
+    let neighbors = [
+        home_tile,
+        home_tile + ivec2(1, 0),
+        home_tile + ivec2(0, 1),
+        home_tile + ivec2(1, 1),
+    ];
+    neighbors
+        .iter()
+        .all(|tile| map.tile_kind(*tile) == Some(TileKind::Wall))
+}
+
+impl World {
+    fn update_turrets(&mut self, dt: f32) {
+        for turret in &mut self.turrets {
+            turret.fire_cooldown = (turret.fire_cooldown - dt).max(0.0);
+            if !bunker_cluster_intact(&self.map, turret.home_tile) {
+                turret.hp = 0;
+                continue;
+            }
+
+            let to_player = self.player.pos - turret.pos;
+            let distance = to_player.length();
+            if distance < TILE_SIZE * 7.0 && turret.fire_cooldown <= 0.0 && distance > 1.0 {
+                let dir = to_player.normalize();
+                let muzzle = turret.pos + dir * (TILE_SIZE * 0.55);
+                self.bullets
+                    .push(Bullet::enemy(muzzle, dir * (BULLET_SPEED * 0.7)));
+                turret.fire_cooldown = 1.35;
             }
         }
     }

@@ -1,10 +1,10 @@
 {
-  "duration": 7.5,
+  "duration": 11.0,
   "captures": [
     { "at": 1.0, "file": "captures/demo_01.png" },
-    { "at": 3.0, "file": "captures/demo_02.png" },
-    { "at": 5.5, "file": "captures/demo_03.png" },
-    { "at": 7.4, "file": "captures/demo_04.png" }
+    { "at": 3.4, "file": "captures/demo_02.png" },
+    { "at": 6.8, "file": "captures/demo_03.png" },
+    { "at": 10.8, "file": "captures/demo_04.png" }
   ],
   "events": [
     { "at": 0.0, "move_dir": "up" },
@@ -13,10 +13,14 @@
     { "at": 2.2, "move_dir": "right" },
     { "at": 3.1, "fire": true },
     { "at": 3.7, "fire": false },
-    { "at": 4.0, "move_dir": "up" },
-    { "at": 5.0, "move_dir": "left" },
-    { "at": 5.9, "fire": true },
-    { "at": 6.4, "fire": false },
-    { "at": 6.9, "move_dir": "none" }
+    { "at": 4.0, "move_dir": "down" },
+    { "at": 5.4, "move_dir": "right" },
+    { "at": 6.0, "fire": true },
+    { "at": 6.7, "fire": false },
+    { "at": 7.2, "move_dir": "up" },
+    { "at": 9.0, "move_dir": "left" },
+    { "at": 9.7, "fire": true },
+    { "at": 10.3, "fire": false },
+    { "at": 10.6, "move_dir": "none" }
   ]
 }

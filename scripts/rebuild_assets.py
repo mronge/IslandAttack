@@ -39,6 +39,8 @@ ASSET_SPECS: dict[str, AssetSpec] = {
     "jeep_right": AssetSpec("jeep_right", (192, 192), (96, 96)),
     "jeep_down": AssetSpec("jeep_down", (192, 192), (96, 96)),
     "jeep_left": AssetSpec("jeep_left", (192, 192), (96, 96)),
+    "enemy_commando": AssetSpec("enemy_commando", (64, 64), (32, 32)),
+    "enemy_rocketeer": AssetSpec("enemy_rocketeer", (64, 64), (32, 32)),
     "enemy_soldier": AssetSpec("enemy_soldier", (64, 64), (32, 32)),
     "hostage": AssetSpec("hostage", (64, 64), (32, 32)),
     "explosion": AssetSpec("explosion", (96, 96), (48, 48)),
@@ -48,8 +50,8 @@ ASSET_SPECS: dict[str, AssetSpec] = {
     "wall_tile": AssetSpec("wall_tile", (128, 128), (0, 0)),
     "cage_tile": AssetSpec("cage_tile", (128, 128), (0, 0)),
     "extraction_tile": AssetSpec("extraction_tile", (128, 128), (0, 0)),
-    "bunker_turret": AssetSpec("wall_tile", (256, 256), (128, 128)),
-    "palm_tree": AssetSpec("grass_tile", (192, 256), (96, 220)),
+    "bunker_turret": AssetSpec("bunker_turret", (256, 256), (128, 128)),
+    "palm_tree": AssetSpec("palm_tree", (192, 256), (96, 220)),
 }
 
 
@@ -81,10 +83,87 @@ def load_image_from_path(
     return cropped
 
 
+def trim_dark_matte(image: Image.Image, darkness_threshold: int = 12) -> Image.Image:
+    corners = [
+        image.getpixel((0, 0)),
+        image.getpixel((image.width - 1, 0)),
+        image.getpixel((0, image.height - 1)),
+        image.getpixel((image.width - 1, image.height - 1)),
+    ]
+    if not all(max(r, g, b) <= darkness_threshold and a >= 250 for r, g, b, a in corners):
+        return image
+
+    bbox: tuple[int, int, int, int] | None = None
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b, a = image.getpixel((x, y))
+            if a < 16:
+                continue
+            if max(r, g, b) <= darkness_threshold:
+                continue
+            if bbox is None:
+                bbox = (x, y, x + 1, y + 1)
+            else:
+                left, top, right, bottom = bbox
+                bbox = (
+                    min(left, x),
+                    min(top, y),
+                    max(right, x + 1),
+                    max(bottom, y + 1),
+                )
+
+    if bbox is None:
+        return image
+    return image.crop(bbox)
+
+
+def inset_tile_edges(image: Image.Image, inset_ratio: float = 0.025) -> Image.Image:
+    inset = max(1, int(round(min(image.width, image.height) * inset_ratio)))
+    if inset * 2 >= image.width or inset * 2 >= image.height:
+        return image
+    return image.crop((inset, inset, image.width - inset, image.height - inset))
+
+
+def crop_to_aspect(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+    target_aspect = size[0] / size[1]
+    image_aspect = image.width / image.height
+
+    if abs(image_aspect - target_aspect) < 0.0001:
+        return image
+
+    if image_aspect > target_aspect:
+        new_width = max(1, int(round(image.height * target_aspect)))
+        left = max(0, (image.width - new_width) // 2)
+        return image.crop((left, 0, left + new_width, image.height))
+
+    new_height = max(1, int(round(image.width / target_aspect)))
+    top = max(0, (image.height - new_height) // 2)
+    return image.crop((0, top, image.width, top + new_height))
+
+
 def load_source_image(name: str, target_size: tuple[int, int]) -> Image.Image:
     path = find_source_path(name)
     if path is not None:
-        return load_image_from_path(path, preserve_size=target_size)
+        image = load_image_from_path(path, preserve_size=target_size)
+        if name.endswith("_tile"):
+            image = trim_dark_matte(image)
+            image = inset_tile_edges(image)
+        return image
+
+    if name == "bunker_turret":
+        fallback = find_source_path("wall_tile")
+        if fallback is not None:
+            return load_image_from_path(fallback, preserve_size=target_size)
+
+    if name == "palm_tree":
+        fallback = find_source_path("grass_tile")
+        if fallback is not None:
+            return load_image_from_path(fallback, preserve_size=target_size)
+
+    if name in {"enemy_commando", "enemy_rocketeer"}:
+        fallback = find_source_path("enemy_soldier")
+        if fallback is not None:
+            return load_image_from_path(fallback, preserve_size=target_size)
 
     if name.startswith("jeep_"):
         base_path = find_source_path("jeep_up")
@@ -122,6 +201,13 @@ def fit_to_size(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     )
     canvas.paste(resized, offset, resized)
     return canvas
+
+
+def fit_tile_to_size(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+    image = crop_to_aspect(image, size)
+    if image.size == size:
+        return image.copy()
+    return image.resize(size, Image.Resampling.NEAREST)
 
 
 def cleanup_jeep_image(image: Image.Image) -> Image.Image:
@@ -184,15 +270,20 @@ def export_assets() -> dict[str, dict[str, float | str]]:
     manifest: dict[str, dict[str, float | str]] = {}
 
     for name, spec in ASSET_SPECS.items():
-        image = fit_to_size(load_source_image(spec.source, spec.draw_size), spec.draw_size)
+        if name.endswith("_tile"):
+            image = fit_tile_to_size(
+                load_source_image(spec.source, spec.draw_size), spec.draw_size
+            )
+        else:
+            image = fit_to_size(load_source_image(spec.source, spec.draw_size), spec.draw_size)
         if name.startswith("jeep_"):
             image = cleanup_jeep_image(image)
         manifest[name] = manifest_entry(save(name, image), spec.draw_size, spec.anchor)
 
-    grass = fit_to_size(load_source_image("grass_tile", ASSET_SPECS["grass_tile"].draw_size), ASSET_SPECS["grass_tile"].draw_size)
-    road = fit_to_size(load_source_image("road_tile", ASSET_SPECS["road_tile"].draw_size), ASSET_SPECS["road_tile"].draw_size)
-    water = fit_to_size(load_source_image("water_tile", ASSET_SPECS["water_tile"].draw_size), ASSET_SPECS["water_tile"].draw_size)
-    wall = fit_to_size(load_source_image("wall_tile", ASSET_SPECS["wall_tile"].draw_size), ASSET_SPECS["wall_tile"].draw_size)
+    grass = fit_tile_to_size(load_source_image("grass_tile", ASSET_SPECS["grass_tile"].draw_size), ASSET_SPECS["grass_tile"].draw_size)
+    road = fit_tile_to_size(load_source_image("road_tile", ASSET_SPECS["road_tile"].draw_size), ASSET_SPECS["road_tile"].draw_size)
+    water = fit_tile_to_size(load_source_image("water_tile", ASSET_SPECS["water_tile"].draw_size), ASSET_SPECS["water_tile"].draw_size)
+    wall = fit_tile_to_size(load_source_image("wall_tile", ASSET_SPECS["wall_tile"].draw_size), ASSET_SPECS["wall_tile"].draw_size)
 
     for idx, image in enumerate(build_variants(grass)):
         manifest[f"ground_{idx}"] = manifest_entry(save(f"ground_{idx}", image), ASSET_SPECS["grass_tile"].draw_size, (0, 0))
@@ -212,6 +303,8 @@ def build_preview(manifest: dict[str, dict[str, float | str]]) -> None:
         "jeep_right",
         "jeep_down",
         "jeep_left",
+        "enemy_commando",
+        "enemy_rocketeer",
         "enemy_soldier",
         "hostage",
         "explosion",

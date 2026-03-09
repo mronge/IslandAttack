@@ -13,6 +13,20 @@
     "draw_width": 128,
     "file": "output/imagegen/final/cage_tile.png"
   },
+  "enemy_commando": {
+    "anchor_x": 32,
+    "anchor_y": 32,
+    "draw_height": 64,
+    "draw_width": 64,
+    "file": "output/imagegen/final/enemy_commando.png"
+  },
+  "enemy_rocketeer": {
+    "anchor_x": 32,
+    "anchor_y": 32,
+    "draw_height": 64,
+    "draw_width": 64,
+    "file": "output/imagegen/final/enemy_rocketeer.png"
+  },
   "enemy_soldier": {
     "anchor_x": 32,
     "anchor_y": 32,
