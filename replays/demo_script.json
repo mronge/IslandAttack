@@ -1,0 +1,22 @@
+{
+  "duration": 7.5,
+  "captures": [
+    { "at": 1.0, "file": "captures/demo_01.png" },
+    { "at": 3.0, "file": "captures/demo_02.png" },
+    { "at": 5.5, "file": "captures/demo_03.png" },
+    { "at": 7.4, "file": "captures/demo_04.png" }
+  ],
+  "events": [
+    { "at": 0.0, "move_dir": "up" },
+    { "at": 1.2, "fire": true },
+    { "at": 1.9, "fire": false },
+    { "at": 2.2, "move_dir": "right" },
+    { "at": 3.1, "fire": true },
+    { "at": 3.7, "fire": false },
+    { "at": 4.0, "move_dir": "up" },
+    { "at": 5.0, "move_dir": "left" },
+    { "at": 5.9, "fire": true },
+    { "at": 6.4, "fire": false },
+    { "at": 6.9, "move_dir": "none" }
+  ]
+}

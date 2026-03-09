@@ -1,7 +1,8 @@
 use crate::constants::JEEP_SPEED;
 use macroquad::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Direction {
     Up,
     Down,

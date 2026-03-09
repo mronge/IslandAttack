@@ -3,7 +3,14 @@ use crate::game::SceneMode;
 use crate::world::{TileKind, World};
 use macroquad::prelude::*;
 
-pub fn draw(world: &World, mode: SceneMode, brush: TileKind, status_text: &str) {
+pub fn draw(
+    world: &World,
+    mode: SceneMode,
+    brush: TileKind,
+    status_text: &str,
+    replay_mode: &str,
+    replay_detail: &str,
+) {
     let mode_label = match mode {
         SceneMode::Play => "PLAY",
         SceneMode::Editor => "EDITOR",
@@ -35,11 +42,18 @@ pub fn draw(world: &World, mode: SceneMode, brush: TileKind, status_text: &str) 
     );
 
     draw_text(status_text, 24.0, 72.0, 28.0, color_u8!(220, 220, 180, 255));
+    draw_text(
+        &format!("INPUT:{}  {}", replay_mode, replay_detail),
+        VIEW_WIDTH - 760.0,
+        38.0,
+        30.0,
+        color_u8!(200, 240, 255, 255),
+    );
 
     match mode {
         SceneMode::Play => {
             draw_text(
-                "WASD/ARROWS MOVE  SPACE FIRE  TAB EDITOR  R RESET",
+                "WASD/ARROWS MOVE  SPACE FIRE  TAB EDITOR  R RESET  F6 REC  F7 PLAY  F8 STOP  F10 DEMO",
                 24.0,
                 VIEW_HEIGHT - 14.0,
                 22.0,

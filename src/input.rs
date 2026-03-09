@@ -1,7 +1,8 @@
 use crate::entities::Direction;
 use macroquad::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct PlayerCommand {
     pub move_dir: Option<Direction>,
     pub fire: bool,

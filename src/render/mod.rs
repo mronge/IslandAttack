@@ -29,6 +29,8 @@ impl Renderer {
         brush: TileKind,
         status_text: &str,
         alpha: f32,
+        replay_mode: &str,
+        replay_detail: &str,
     ) {
         let camera_center = match mode {
             SceneMode::Play => camera::clamp_camera_center(play_camera_center, world),
@@ -50,7 +52,7 @@ impl Renderer {
             matches!(mode, SceneMode::Editor),
             alpha,
         );
-        hud::draw(world, mode, brush, status_text);
+        hud::draw(world, mode, brush, status_text, replay_mode, replay_detail);
 
         set_default_camera();
         clear_background(BLACK);

@@ -4,6 +4,7 @@ pub const VIEW_HEIGHT: f32 = 1080.0;
 pub const TILE_SIZE: f32 = 128.0;
 pub const FIXED_DT: f32 = 1.0 / 60.0;
 pub const LEVEL_PATH: &str = "levels/prototype.json";
+pub const REPLAY_PATH: &str = "replays/latest.json";
 pub const JEEP_SPEED: f32 = 840.0;
 pub const JEEP_ACCEL: f32 = 3200.0;
 pub const JEEP_BRAKE: f32 = 4200.0;
