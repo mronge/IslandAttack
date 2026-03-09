@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
+from PIL.ImageFilter import MaxFilter
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,10 +35,10 @@ class AssetSpec:
 
 
 ASSET_SPECS: dict[str, AssetSpec] = {
-    "jeep_up": AssetSpec("jeep_up", (256, 256), (128, 128)),
-    "jeep_right": AssetSpec("jeep_right", (256, 256), (128, 128)),
-    "jeep_down": AssetSpec("jeep_down", (256, 256), (128, 128)),
-    "jeep_left": AssetSpec("jeep_left", (256, 256), (128, 128)),
+    "jeep_up": AssetSpec("jeep_up", (192, 192), (96, 96)),
+    "jeep_right": AssetSpec("jeep_right", (192, 192), (96, 96)),
+    "jeep_down": AssetSpec("jeep_down", (192, 192), (96, 96)),
+    "jeep_left": AssetSpec("jeep_left", (192, 192), (96, 96)),
     "enemy_soldier": AssetSpec("enemy_soldier", (64, 64), (32, 32)),
     "hostage": AssetSpec("hostage", (64, 64), (32, 32)),
     "explosion": AssetSpec("explosion", (96, 96), (48, 48)),
@@ -123,6 +124,37 @@ def fit_to_size(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     return canvas
 
 
+def cleanup_jeep_image(image: Image.Image) -> Image.Image:
+    rgba = image.convert("RGBA")
+    core = Image.new("L", rgba.size, 0)
+    core_pixels = core.load()
+
+    for y in range(rgba.height):
+        for x in range(rgba.width):
+            r, g, b, a = rgba.getpixel((x, y))
+            if a == 0:
+                continue
+            brightness = r + g + b
+            if brightness >= 150 or (g > r + 12 and g > b + 12):
+                core_pixels[x, y] = 255
+
+    influence = core
+    for _ in range(4):
+        influence = influence.filter(MaxFilter(5))
+
+    cleaned = rgba.copy()
+    pixels = cleaned.load()
+    for y in range(cleaned.height):
+        for x in range(cleaned.width):
+            r, g, b, a = pixels[x, y]
+            if a == 0:
+                continue
+            if influence.getpixel((x, y)) == 0:
+                pixels[x, y] = (0, 0, 0, 0)
+
+    return cleaned
+
+
 def build_variants(base: Image.Image) -> list[Image.Image]:
     return [
         base,
@@ -153,6 +185,8 @@ def export_assets() -> dict[str, dict[str, float | str]]:
 
     for name, spec in ASSET_SPECS.items():
         image = fit_to_size(load_source_image(spec.source, spec.draw_size), spec.draw_size)
+        if name.startswith("jeep_"):
+            image = cleanup_jeep_image(image)
         manifest[name] = manifest_entry(save(name, image), spec.draw_size, spec.anchor)
 
     grass = fit_to_size(load_source_image("grass_tile", ASSET_SPECS["grass_tile"].draw_size), ASSET_SPECS["grass_tile"].draw_size)

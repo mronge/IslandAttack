@@ -148,13 +148,14 @@ fn draw_entities(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     }
 
     let jeep_pos = world_to_screen(world.player.render_pos(alpha), top_left);
+    let jeep_sprite = assets.sprite(jeep_sprite_name(world.player.dir));
     draw_ellipse(
         jeep_pos.x,
-        jeep_pos.y + 56.0,
-        76.0,
-        28.0,
+        jeep_pos.y + jeep_sprite.draw_size.y * 0.26,
+        jeep_sprite.draw_size.x * 0.26,
+        jeep_sprite.draw_size.y * 0.085,
         0.0,
-        Color::new(0.0, 0.0, 0.0, 0.28),
+        Color::new(0.0, 0.0, 0.0, 0.18),
     );
     draw_sprite_centered(
         assets,

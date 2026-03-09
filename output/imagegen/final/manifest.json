@@ -77,31 +77,31 @@
     "file": "output/imagegen/final/hostage.png"
   },
   "jeep_down": {
-    "anchor_x": 128,
-    "anchor_y": 128,
-    "draw_height": 256,
-    "draw_width": 256,
+    "anchor_x": 96,
+    "anchor_y": 96,
+    "draw_height": 192,
+    "draw_width": 192,
     "file": "output/imagegen/final/jeep_down.png"
   },
   "jeep_left": {
-    "anchor_x": 128,
-    "anchor_y": 128,
-    "draw_height": 256,
-    "draw_width": 256,
+    "anchor_x": 96,
+    "anchor_y": 96,
+    "draw_height": 192,
+    "draw_width": 192,
     "file": "output/imagegen/final/jeep_left.png"
   },
   "jeep_right": {
-    "anchor_x": 128,
-    "anchor_y": 128,
-    "draw_height": 256,
-    "draw_width": 256,
+    "anchor_x": 96,
+    "anchor_y": 96,
+    "draw_height": 192,
+    "draw_width": 192,
     "file": "output/imagegen/final/jeep_right.png"
   },
   "jeep_up": {
-    "anchor_x": 128,
-    "anchor_y": 128,
-    "draw_height": 256,
-    "draw_width": 256,
+    "anchor_x": 96,
+    "anchor_y": 96,
+    "draw_height": 192,
+    "draw_width": 192,
     "file": "output/imagegen/final/jeep_up.png"
   },
   "palm_tree": {
