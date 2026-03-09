@@ -28,6 +28,7 @@ impl Renderer {
         editor_camera_center: Vec2,
         brush: TileKind,
         status_text: &str,
+        alpha: f32,
     ) {
         let camera_center = match mode {
             SceneMode::Play => camera::clamp_camera_center(play_camera_center, world),
@@ -42,18 +43,21 @@ impl Renderer {
             ..Default::default()
         });
         clear_background(BLACK);
-        sprites::draw_world(assets, world, top_left, matches!(mode, SceneMode::Editor));
+        sprites::draw_world(
+            assets,
+            world,
+            top_left,
+            matches!(mode, SceneMode::Editor),
+            alpha,
+        );
         hud::draw(world, mode, brush, status_text);
 
         set_default_camera();
         clear_background(BLACK);
 
-        let raw_scale = (screen_width() / VIEW_WIDTH).min(screen_height() / VIEW_HEIGHT);
-        let scale = if raw_scale < 1.0 {
-            raw_scale
-        } else {
-            raw_scale.floor().max(1.0)
-        };
+        let scale = (screen_width() / VIEW_WIDTH)
+            .min(screen_height() / VIEW_HEIGHT)
+            .max(0.1);
         let dest = vec2(VIEW_WIDTH * scale, VIEW_HEIGHT * scale);
         let origin = vec2(
             (screen_width() - dest.x) * 0.5,

@@ -171,61 +171,63 @@ impl TileMap {
 }
 
 pub fn default_level() -> LevelData {
-    let width = 40;
-    let height = 36;
+    fn set_rect(
+        tiles: &mut [TileKind],
+        width: usize,
+        x0: usize,
+        y0: usize,
+        w: usize,
+        h: usize,
+        kind: TileKind,
+    ) {
+        for y in y0..(y0 + h) {
+            for x in x0..(x0 + w) {
+                tiles[y * width + x] = kind;
+            }
+        }
+    }
+
+    let width = 44;
+    let height = 40;
     let mut tiles = vec![TileKind::Grass; width * height];
 
-    let mut set_tile = |x: usize, y: usize, kind: TileKind| {
-        tiles[y * width + x] = kind;
-    };
-
     for y in 0..height {
-        set_tile(19, y, TileKind::Road);
-        set_tile(20, y, TileKind::Road);
-        set_tile(21, y, TileKind::Road);
+        set_rect(&mut tiles, width, 20, y, 4, 1, TileKind::Road);
     }
 
-    for y in 4..16 {
-        for x in 2..8 {
-            set_tile(x, y, TileKind::Water);
-        }
+    set_rect(&mut tiles, width, 4, 7, 36, 3, TileKind::Road);
+    set_rect(&mut tiles, width, 6, 28, 32, 3, TileKind::Road);
+    set_rect(&mut tiles, width, 9, 18, 26, 2, TileKind::Road);
+
+    set_rect(&mut tiles, width, 2, 3, 8, 8, TileKind::Water);
+    set_rect(&mut tiles, width, 33, 20, 8, 9, TileKind::Water);
+
+    for y in 0..4 {
+        set_rect(&mut tiles, width, 11, y, 9, 1, TileKind::Wall);
+        set_rect(&mut tiles, width, 24, y, 9, 1, TileKind::Wall);
     }
 
-    for y in 18..30 {
-        for x in 31..37 {
-            set_tile(x, y, TileKind::Water);
-        }
-    }
+    set_rect(&mut tiles, width, 11, 12, 2, 2, TileKind::Wall);
+    set_rect(&mut tiles, width, 29, 13, 2, 2, TileKind::Wall);
+    set_rect(&mut tiles, width, 8, 23, 2, 2, TileKind::Wall);
+    set_rect(&mut tiles, width, 24, 23, 2, 2, TileKind::Wall);
+    set_rect(&mut tiles, width, 15, 33, 2, 2, TileKind::Wall);
+    set_rect(&mut tiles, width, 31, 33, 2, 2, TileKind::Wall);
 
-    for y in 6..10 {
-        for x in 13..17 {
-            set_tile(x, y, TileKind::Wall);
-        }
-    }
+    tiles[37 * width + 22] = TileKind::PlayerSpawn;
+    set_rect(&mut tiles, width, 21, 1, 2, 2, TileKind::Extraction);
 
-    for y in 18..23 {
-        for x in 24..28 {
-            set_tile(x, y, TileKind::Wall);
-        }
-    }
+    tiles[15 * width + 16] = TileKind::HostageCage;
+    tiles[17 * width + 26] = TileKind::HostageCage;
+    tiles[27 * width + 12] = TileKind::HostageCage;
+    tiles[29 * width + 29] = TileKind::HostageCage;
 
-    for y in 26..30 {
-        for x in 10..14 {
-            set_tile(x, y, TileKind::Wall);
-        }
-    }
-
-    set_tile(20, 33, TileKind::PlayerSpawn);
-    set_tile(20, 2, TileKind::Extraction);
-
-    set_tile(16, 12, TileKind::HostageCage);
-    set_tile(24, 16, TileKind::HostageCage);
-    set_tile(12, 24, TileKind::HostageCage);
-
-    set_tile(15, 8, TileKind::EnemySpawn);
-    set_tile(25, 10, TileKind::EnemySpawn);
-    set_tile(11, 20, TileKind::EnemySpawn);
-    set_tile(29, 26, TileKind::EnemySpawn);
+    tiles[10 * width + 14] = TileKind::EnemySpawn;
+    tiles[10 * width + 30] = TileKind::EnemySpawn;
+    tiles[20 * width + 9] = TileKind::EnemySpawn;
+    tiles[21 * width + 27] = TileKind::EnemySpawn;
+    tiles[31 * width + 17] = TileKind::EnemySpawn;
+    tiles[31 * width + 33] = TileKind::EnemySpawn;
 
     LevelData {
         width,

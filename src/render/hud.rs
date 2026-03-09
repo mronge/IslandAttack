@@ -1,3 +1,4 @@
+use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
 use crate::game::SceneMode;
 use crate::world::{TileKind, World};
 use macroquad::prelude::*;
@@ -7,6 +8,15 @@ pub fn draw(world: &World, mode: SceneMode, brush: TileKind, status_text: &str) 
         SceneMode::Play => "PLAY",
         SceneMode::Editor => "EDITOR",
     };
+
+    draw_rectangle(0.0, 0.0, VIEW_WIDTH, 92.0, Color::new(0.0, 0.0, 0.0, 0.72));
+    draw_rectangle(
+        0.0,
+        VIEW_HEIGHT - 44.0,
+        VIEW_WIDTH,
+        44.0,
+        Color::new(0.0, 0.0, 0.0, 0.72),
+    );
 
     draw_text(
         &format!(
@@ -18,21 +28,21 @@ pub fn draw(world: &World, mode: SceneMode, brush: TileKind, status_text: &str) 
             world.mission.total_hostages,
             world.rider_count()
         ),
-        8.0,
-        12.0,
-        16.0,
+        24.0,
+        38.0,
+        38.0,
         WHITE,
     );
 
-    draw_text(status_text, 8.0, 28.0, 14.0, color_u8!(220, 220, 180, 255));
+    draw_text(status_text, 24.0, 72.0, 28.0, color_u8!(220, 220, 180, 255));
 
     match mode {
         SceneMode::Play => {
             draw_text(
                 "WASD/ARROWS MOVE  SPACE FIRE  TAB EDITOR  R RESET",
-                8.0,
-                172.0,
-                12.0,
+                24.0,
+                VIEW_HEIGHT - 14.0,
+                22.0,
                 WHITE,
             );
         }
@@ -42,29 +52,36 @@ pub fn draw(world: &World, mode: SceneMode, brush: TileKind, status_text: &str) 
                     "ARROWS PAN  LMB PAINT  RMB GRASS  1-8 BRUSH  F5 SAVE  F9 LOAD  ENTER PLAYTEST  BRUSH:{:?}",
                     brush
                 ),
-                8.0,
-                172.0,
-                12.0,
+                24.0,
+                VIEW_HEIGHT - 14.0,
+                22.0,
                 WHITE,
             );
         }
     }
 
     if world.mission.victory {
-        draw_text(
-            "MISSION CLEAR",
-            104.0,
-            88.0,
-            24.0,
-            color_u8!(220, 255, 200, 255),
-        );
+        draw_centered_message("MISSION CLEAR", color_u8!(220, 255, 200, 255));
     } else if world.mission.game_over {
-        draw_text(
-            "GAME OVER",
-            112.0,
-            88.0,
-            24.0,
-            color_u8!(255, 170, 170, 255),
-        );
+        draw_centered_message("GAME OVER", color_u8!(255, 170, 170, 255));
     }
+}
+
+fn draw_centered_message(text: &str, color: Color) {
+    let size = 64.0;
+    let measured = measure_text(text, None, size as u16, 1.0);
+    draw_rectangle(
+        VIEW_WIDTH * 0.5 - measured.width * 0.5 - 24.0,
+        VIEW_HEIGHT * 0.5 - 56.0,
+        measured.width + 48.0,
+        82.0,
+        Color::new(0.0, 0.0, 0.0, 0.7),
+    );
+    draw_text(
+        text,
+        VIEW_WIDTH * 0.5 - measured.width * 0.5,
+        VIEW_HEIGHT * 0.5,
+        size,
+        color,
+    );
 }

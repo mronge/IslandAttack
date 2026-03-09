@@ -19,6 +19,7 @@ pub struct Game {
     pub renderer: Renderer,
     pub editor: EditorState,
     pub mode: SceneMode,
+    pub prev_play_camera_center: Vec2,
     pub play_camera_center: Vec2,
     pub accumulator: f32,
     pub status_text: String,
@@ -38,6 +39,7 @@ impl Game {
             renderer: Renderer::new(),
             editor,
             mode: SceneMode::Play,
+            prev_play_camera_center: play_camera_center,
             play_camera_center,
             accumulator: 0.0,
             status_text: "Destroy cages, pick up hostages, extract up top.".to_owned(),
@@ -56,14 +58,19 @@ impl Game {
     }
 
     pub fn draw(&mut self) {
+        let alpha = (self.accumulator / FIXED_DT).clamp(0.0, 1.0);
+        let interpolated_camera = self
+            .prev_play_camera_center
+            .lerp(self.play_camera_center, alpha);
         self.renderer.draw(
             &self.assets,
             &self.world,
             self.mode,
-            self.play_camera_center,
+            interpolated_camera,
             self.editor.camera_center,
             self.editor.brush,
             &self.status_text,
+            alpha,
         );
     }
 
@@ -78,6 +85,7 @@ impl Game {
         self.accumulator += frame_dt;
 
         while self.accumulator >= FIXED_DT {
+            self.prev_play_camera_center = self.play_camera_center;
             self.world.update(command, FIXED_DT);
             self.play_camera_center =
                 camera::update_play_camera_center(self.play_camera_center, &self.world);
@@ -132,6 +140,7 @@ impl Game {
     fn rebuild_world(&mut self) {
         self.world = World::from_level(&self.level);
         self.play_camera_center = camera::initial_play_camera_center(&self.world);
+        self.prev_play_camera_center = self.play_camera_center;
         self.editor.camera_center = self.world.player.pos;
     }
 

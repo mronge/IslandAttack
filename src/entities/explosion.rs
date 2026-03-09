@@ -8,6 +8,6 @@ pub struct Explosion {
 
 impl Explosion {
     pub fn new(pos: Vec2) -> Self {
-        Self { pos, timer: 0.25 }
+        Self { pos, timer: 0.35 }
     }
 }

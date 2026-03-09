@@ -14,8 +14,8 @@ use macroquad::prelude::*;
 fn window_conf() -> Conf {
     Conf {
         window_title: constants::WINDOW_TITLE.to_owned(),
-        window_width: 1280,
-        window_height: 720,
+        window_width: 1920,
+        window_height: 1080,
         high_dpi: false,
         sample_count: 1,
         ..Default::default()

@@ -22,7 +22,9 @@ impl Direction {
 
 #[derive(Clone, Debug)]
 pub struct Jeep {
+    pub prev_pos: Vec2,
     pub pos: Vec2,
+    pub vel: Vec2,
     pub dir: Direction,
     pub speed: f32,
     pub fire_cooldown: f32,
@@ -34,7 +36,9 @@ pub struct Jeep {
 impl Jeep {
     pub fn new(pos: Vec2) -> Self {
         Self {
+            prev_pos: pos,
             pos,
+            vel: Vec2::ZERO,
             dir: Direction::Up,
             speed: JEEP_SPEED,
             fire_cooldown: 0.0,
@@ -45,6 +49,10 @@ impl Jeep {
     }
 
     pub fn size(&self) -> Vec2 {
-        vec2(12.0, 12.0)
+        vec2(118.0, 136.0)
+    }
+
+    pub fn render_pos(&self, alpha: f32) -> Vec2 {
+        self.prev_pos.lerp(self.pos, alpha)
     }
 }

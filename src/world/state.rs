@@ -16,7 +16,10 @@ pub struct World {
 impl World {
     pub fn from_level(level: &LevelData) -> Self {
         let map = TileMap::from_level_data(level);
-        let mut player_spawn = vec2(map.dimensions_px().x * 0.5, map.dimensions_px().y - 32.0);
+        let mut player_spawn = vec2(
+            map.dimensions_px().x * 0.5,
+            map.dimensions_px().y - crate::constants::TILE_SIZE * 1.5,
+        );
         let mut enemies = Vec::new();
         let mut hostages = Vec::new();
 
@@ -28,8 +31,8 @@ impl World {
                     TileKind::PlayerSpawn => player_spawn = center,
                     TileKind::EnemySpawn => enemies.push(Enemy::new(center)),
                     TileKind::HostageCage => {
-                        hostages.push(Hostage::new(center + vec2(-3.0, 0.0), tile));
-                        hostages.push(Hostage::new(center + vec2(3.0, 0.0), tile));
+                        hostages.push(Hostage::new(center + vec2(-28.0, 12.0), tile));
+                        hostages.push(Hostage::new(center + vec2(28.0, 12.0), tile));
                     }
                     _ => {}
                 }
@@ -59,5 +62,21 @@ impl World {
             .iter()
             .filter(|hostage| matches!(hostage.state, crate::entities::HostageState::Riding { .. }))
             .count()
+    }
+
+    pub fn snapshot_positions(&mut self) {
+        self.player.prev_pos = self.player.pos;
+
+        for enemy in &mut self.enemies {
+            enemy.prev_pos = enemy.pos;
+        }
+
+        for hostage in &mut self.hostages {
+            hostage.prev_pos = hostage.pos;
+        }
+
+        for bullet in &mut self.bullets {
+            bullet.prev_pos = bullet.pos;
+        }
     }
 }

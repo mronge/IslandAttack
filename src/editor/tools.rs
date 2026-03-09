@@ -27,7 +27,7 @@ impl EditorState {
     pub fn update(&mut self, dt: f32, level: &mut LevelData, world: &World) -> EditorAction {
         self.handle_brush_hotkeys();
 
-        let camera_speed = 140.0;
+        let camera_speed = 900.0;
         if is_key_down(KeyCode::Left) {
             self.camera_center.x -= camera_speed * dt;
         }

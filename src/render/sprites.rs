@@ -5,12 +5,9 @@ use crate::world::{TileKind, World};
 use macroquad::prelude::*;
 
 pub fn viewport_scale() -> (f32, Vec2) {
-    let raw_scale = (screen_width() / VIEW_WIDTH).min(screen_height() / VIEW_HEIGHT);
-    let scale = if raw_scale < 1.0 {
-        raw_scale
-    } else {
-        raw_scale.floor().max(1.0)
-    };
+    let scale = (screen_width() / VIEW_WIDTH)
+        .min(screen_height() / VIEW_HEIGHT)
+        .max(0.1);
     let size = vec2(VIEW_WIDTH * scale, VIEW_HEIGHT * scale);
     let origin = vec2(
         (screen_width() - size.x) * 0.5,
@@ -19,153 +16,279 @@ pub fn viewport_scale() -> (f32, Vec2) {
     (scale, origin)
 }
 
-pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, editor_mode: bool) {
-    draw_tiles(assets, world, top_left, editor_mode);
-    draw_entities(assets, world, top_left);
+pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, editor_mode: bool, alpha: f32) {
+    draw_ground_tiles(assets, world, top_left, editor_mode);
+    draw_prop_layer(assets, world, top_left, editor_mode);
+    draw_entities(assets, world, top_left, alpha);
 }
 
-fn draw_tiles(assets: &Assets, world: &World, top_left: Vec2, editor_mode: bool) {
-    for y in 0..world.map.height {
-        for x in 0..world.map.width {
-            let tile_pos = ivec2(x as i32, y as i32);
-            let tile = &world.map.tiles[y * world.map.width + x];
-            let screen_pos = world.map.tile_center(tile_pos) - top_left - vec2(8.0, 8.0);
-
-            draw_metasprite(
-                assets,
-                &tile_sprite_name(tile.kind, tile_pos, editor_mode),
-                vec2(screen_pos.x.floor(), screen_pos.y.floor()),
-                WHITE,
-            );
-
-            if matches!(tile.kind, TileKind::Wall | TileKind::HostageCage) {
-                draw_rectangle_lines(
-                    screen_pos.x.floor(),
-                    screen_pos.y.floor(),
-                    TILE_SIZE,
-                    TILE_SIZE,
-                    1.0,
-                    color_u8!(44, 38, 32, 255),
-                );
-            }
-
-            if tile.kind == TileKind::Extraction {
-                draw_rectangle_lines(
-                    screen_pos.x.floor() + 2.0,
-                    screen_pos.y.floor() + 2.0,
-                    TILE_SIZE - 4.0,
-                    TILE_SIZE - 4.0,
-                    2.0,
-                    color_u8!(180, 255, 180, 255),
-                );
-            }
+fn draw_ground_tiles(assets: &Assets, world: &World, top_left: Vec2, editor_mode: bool) {
+    let (min_x, max_x, min_y, max_y) = visible_tile_bounds(world, top_left, 0);
+    for y in min_y..max_y {
+        for x in min_x..max_x {
+            let tile_pos = ivec2(x, y);
+            let tile = &world.map.tiles[y as usize * world.map.width + x as usize];
+            let screen_pos =
+                world.map.tile_center(tile_pos) - top_left - vec2(TILE_SIZE * 0.5, TILE_SIZE * 0.5);
+            let sprite_name = ground_sprite_name(tile.kind, tile_pos);
+            draw_sprite_top_left_snapped(assets, sprite_name, screen_pos, WHITE);
 
             if editor_mode {
                 draw_rectangle_lines(
-                    screen_pos.x.floor(),
-                    screen_pos.y.floor(),
+                    screen_pos.x,
+                    screen_pos.y,
                     TILE_SIZE,
                     TILE_SIZE,
                     1.0,
-                    Color::new(0.0, 0.0, 0.0, 0.10),
+                    Color::new(0.0, 0.0, 0.0, 0.12),
                 );
             }
         }
     }
 }
 
-fn draw_entities(assets: &Assets, world: &World, top_left: Vec2) {
+fn draw_prop_layer(assets: &Assets, world: &World, top_left: Vec2, editor_mode: bool) {
+    let (min_x, max_x, min_y, max_y) = visible_tile_bounds(world, top_left, 2);
+    for y in min_y..max_y {
+        for x in min_x..max_x {
+            let tile_pos = ivec2(x, y);
+            let tile = &world.map.tiles[y as usize * world.map.width + x as usize];
+            let tile_center = world.map.tile_center(tile_pos);
+            let tile_top_left = tile_center - top_left - vec2(TILE_SIZE * 0.5, TILE_SIZE * 0.5);
+
+            if should_draw_palm(world, tile_pos, tile.kind) {
+                let palm_base = vec2(tile_center.x, tile_center.y + TILE_SIZE * 0.15);
+                draw_sprite_anchored(
+                    assets,
+                    "palm_tree",
+                    world_to_screen(palm_base, top_left),
+                    WHITE,
+                );
+            }
+
+            match tile.kind {
+                TileKind::Wall => {
+                    draw_sprite_top_left_snapped(
+                        assets,
+                        wall_sprite_name(tile_pos),
+                        tile_top_left,
+                        WHITE,
+                    );
+                    if is_bunker_origin(world, tile_pos) {
+                        let bunker_center = tile_center + vec2(TILE_SIZE * 0.5, TILE_SIZE * 0.5);
+                        draw_sprite_centered(
+                            assets,
+                            "bunker_turret",
+                            world_to_screen(bunker_center, top_left),
+                            WHITE,
+                        );
+                    }
+                }
+                TileKind::HostageCage => {
+                    draw_sprite_top_left_snapped(assets, "cage_tile", tile_top_left, WHITE);
+                }
+                TileKind::Extraction => {
+                    draw_sprite_top_left_snapped(assets, "extraction_tile", tile_top_left, WHITE);
+                }
+                TileKind::EnemySpawn if editor_mode => {
+                    draw_editor_marker(
+                        tile_top_left,
+                        Color::new(0.86, 0.24, 0.24, 0.45),
+                        Color::new(1.0, 0.83, 0.6, 0.9),
+                    );
+                }
+                TileKind::PlayerSpawn if editor_mode => {
+                    draw_editor_marker(
+                        tile_top_left,
+                        Color::new(0.18, 0.72, 0.3, 0.42),
+                        Color::new(0.9, 1.0, 0.82, 0.9),
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn draw_entities(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     for hostage in &world.hostages {
         if matches!(hostage.state, HostageState::Rescued) {
             continue;
         }
-        let pos = world_to_screen(hostage.pos, top_left);
-        draw_metasprite_centered(assets, "hostage", pos, WHITE);
-    }
-
-    for enemy in &world.enemies {
-        let pos = world_to_screen(enemy.pos, top_left);
-        draw_metasprite_centered(assets, "enemy_soldier", pos, WHITE);
-    }
-
-    for bullet in &world.bullets {
-        let pos = bullet.pos - top_left;
-        draw_rectangle(
-            (pos.x - 1.0).floor(),
-            (pos.y - 1.0).floor(),
-            3.0,
-            3.0,
+        draw_sprite_centered(
+            assets,
+            "hostage",
+            world_to_screen(hostage.render_pos(alpha), top_left),
             WHITE,
         );
     }
 
-    for explosion in &world.explosions {
-        let pos = world_to_screen(explosion.pos, top_left);
-        draw_metasprite_centered(assets, "explosion", pos, WHITE);
-    }
-
-    let pos = world_to_screen(world.player.pos, top_left);
-    let jeep_tint = if world.player.invuln_timer > 0.0 {
-        Color::new(1.0, 1.0, 1.0, 0.7)
-    } else {
-        WHITE
-    };
-    let shadow_pos = pos + vec2(1.0, 1.0);
-    draw_metasprite_centered(
-        assets,
-        jeep_sprite_name(world.player.dir),
-        shadow_pos,
-        Color::new(0.0, 0.0, 0.0, 0.45),
-    );
-    draw_metasprite_centered(assets, jeep_sprite_name(world.player.dir), pos, jeep_tint);
-}
-
-fn draw_metasprite(assets: &Assets, sprite_name: &str, pos: Vec2, tint: Color) {
-    let meta = assets.metasprite(sprite_name);
-    for part in &meta.parts {
-        let region = assets.subtile_region(&part.tile);
-        draw_texture_ex(
-            assets.texture(),
-            (pos.x + part.x).floor(),
-            (pos.y + part.y).floor(),
-            tint,
-            DrawTextureParams {
-                source: Some(region),
-                dest_size: Some(vec2(region.w, region.h)),
-                ..Default::default()
-            },
+    for enemy in &world.enemies {
+        draw_sprite_centered(
+            assets,
+            "enemy_soldier",
+            world_to_screen(enemy.render_pos(alpha), top_left),
+            WHITE,
         );
     }
+
+    for bullet in &world.bullets {
+        let pos = world_to_screen(bullet.render_pos(alpha), top_left);
+        draw_circle(pos.x, pos.y, 10.0, color_u8!(245, 245, 230, 255));
+        draw_circle(pos.x, pos.y, 4.0, color_u8!(255, 190, 90, 255));
+    }
+
+    for explosion in &world.explosions {
+        draw_sprite_centered(
+            assets,
+            "explosion",
+            world_to_screen(explosion.pos, top_left),
+            WHITE,
+        );
+    }
+
+    let jeep_pos = world_to_screen(world.player.render_pos(alpha), top_left);
+    draw_ellipse(
+        jeep_pos.x,
+        jeep_pos.y + 56.0,
+        76.0,
+        28.0,
+        0.0,
+        Color::new(0.0, 0.0, 0.0, 0.28),
+    );
+    draw_sprite_centered(
+        assets,
+        jeep_sprite_name(world.player.dir),
+        jeep_pos,
+        if world.player.invuln_timer > 0.0 {
+            Color::new(1.0, 1.0, 1.0, 0.7)
+        } else {
+            WHITE
+        },
+    );
 }
 
-fn draw_metasprite_centered(assets: &Assets, sprite_name: &str, center: Vec2, tint: Color) {
-    let meta = assets.metasprite(sprite_name);
-    let top_left = vec2(center.x - meta.w * 0.5, center.y - meta.h * 0.5);
-    draw_metasprite(assets, sprite_name, top_left, tint);
+fn draw_editor_marker(top_left: Vec2, fill: Color, stroke: Color) {
+    draw_rectangle(top_left.x, top_left.y, TILE_SIZE, TILE_SIZE, fill);
+    draw_rectangle_lines(top_left.x, top_left.y, TILE_SIZE, TILE_SIZE, 4.0, stroke);
+}
+
+fn draw_sprite_top_left(assets: &Assets, sprite_name: &str, top_left: Vec2, tint: Color) {
+    let sprite = assets.sprite(sprite_name);
+    draw_texture_ex(
+        &sprite.texture,
+        top_left.x,
+        top_left.y,
+        tint,
+        DrawTextureParams {
+            dest_size: Some(sprite.draw_size),
+            ..Default::default()
+        },
+    );
+}
+
+fn draw_sprite_top_left_snapped(assets: &Assets, sprite_name: &str, top_left: Vec2, tint: Color) {
+    draw_sprite_top_left(
+        assets,
+        sprite_name,
+        vec2(top_left.x.floor(), top_left.y.floor()),
+        tint,
+    );
+}
+
+fn draw_sprite_anchored(assets: &Assets, sprite_name: &str, anchor_world: Vec2, tint: Color) {
+    let sprite = assets.sprite(sprite_name);
+    let top_left = anchor_world - sprite.anchor;
+    draw_sprite_top_left(assets, sprite_name, top_left, tint);
+}
+
+fn draw_sprite_centered(assets: &Assets, sprite_name: &str, center: Vec2, tint: Color) {
+    let sprite = assets.sprite(sprite_name);
+    let top_left = center - sprite.anchor;
+    draw_sprite_top_left(assets, sprite_name, top_left, tint);
 }
 
 fn world_to_screen(world_pos: Vec2, top_left: Vec2) -> Vec2 {
-    vec2(
-        (world_pos.x - top_left.x).floor(),
-        (world_pos.y - top_left.y).floor(),
-    )
+    vec2(world_pos.x - top_left.x, world_pos.y - top_left.y)
 }
 
-fn tile_sprite_name(kind: TileKind, tile_pos: IVec2, editor_mode: bool) -> String {
+fn visible_tile_bounds(world: &World, top_left: Vec2, padding_tiles: i32) -> (i32, i32, i32, i32) {
+    let min_x =
+        ((top_left.x / TILE_SIZE).floor() as i32 - padding_tiles).clamp(0, world.map.width as i32);
+    let max_x = (((top_left.x + VIEW_WIDTH) / TILE_SIZE).ceil() as i32 + padding_tiles + 1)
+        .clamp(0, world.map.width as i32);
+    let min_y =
+        ((top_left.y / TILE_SIZE).floor() as i32 - padding_tiles).clamp(0, world.map.height as i32);
+    let max_y = (((top_left.y + VIEW_HEIGHT) / TILE_SIZE).ceil() as i32 + padding_tiles + 1)
+        .clamp(0, world.map.height as i32);
+    (min_x, max_x, min_y, max_y)
+}
+
+fn ground_sprite_name(kind: TileKind, tile_pos: IVec2) -> &'static str {
+    const GROUND: [&str; 4] = ["ground_0", "ground_1", "ground_2", "ground_3"];
+    const ROAD: [&str; 4] = ["road_0", "road_1", "road_2", "road_3"];
+    const WATER: [&str; 2] = ["water_0", "water_1"];
     let variant = ((tile_pos.x.rem_euclid(2) * 2) + tile_pos.y.rem_euclid(2)) as usize;
     match kind {
-        TileKind::Grass => format!("ground_{}", variant),
-        TileKind::Road => format!("road_{}", variant),
-        TileKind::Water => format!("water_{}", variant % 2),
-        TileKind::Wall => format!("wall_{}", variant % 2),
-        TileKind::Rubble => format!("road_{}", variant),
-        TileKind::HostageCage => "cage_tile".to_owned(),
-        TileKind::Extraction => "extraction_tile".to_owned(),
-        TileKind::EnemySpawn if editor_mode => "wall_0".to_owned(),
-        TileKind::EnemySpawn => format!("ground_{}", variant),
-        TileKind::PlayerSpawn if editor_mode => "road_0".to_owned(),
-        TileKind::PlayerSpawn => format!("ground_{}", variant),
+        TileKind::Grass => GROUND[variant],
+        TileKind::Road => ROAD[variant],
+        TileKind::Water => WATER[variant % 2],
+        TileKind::Rubble => ROAD[variant],
+        TileKind::Wall
+        | TileKind::HostageCage
+        | TileKind::Extraction
+        | TileKind::EnemySpawn
+        | TileKind::PlayerSpawn => GROUND[variant],
     }
+}
+
+fn wall_sprite_name(tile_pos: IVec2) -> &'static str {
+    let variant = ((tile_pos.x + tile_pos.y).rem_euclid(2)) as usize;
+    if variant == 0 { "wall_0" } else { "wall_1" }
+}
+
+fn is_bunker_origin(world: &World, tile_pos: IVec2) -> bool {
+    let neighbors = [
+        tile_pos,
+        tile_pos + ivec2(1, 0),
+        tile_pos + ivec2(0, 1),
+        tile_pos + ivec2(1, 1),
+    ];
+    if neighbors
+        .iter()
+        .any(|pos| world.map.tile_kind(*pos) != Some(TileKind::Wall))
+    {
+        return false;
+    }
+
+    world.map.tile_kind(tile_pos + ivec2(-1, 0)) != Some(TileKind::Wall)
+        && world.map.tile_kind(tile_pos + ivec2(0, -1)) != Some(TileKind::Wall)
+}
+
+fn should_draw_palm(world: &World, tile_pos: IVec2, kind: TileKind) -> bool {
+    if kind != TileKind::Grass {
+        return false;
+    }
+
+    let hash = (tile_pos.x * 17 + tile_pos.y * 31).rem_euclid(19);
+    if hash != 0 {
+        return false;
+    }
+
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let neighbor = tile_pos + ivec2(dx, dy);
+            if world
+                .map
+                .tile_kind(neighbor)
+                .is_some_and(|other| other != TileKind::Grass)
+            {
+                return false;
+            }
+        }
+    }
+
+    true
 }
 
 fn jeep_sprite_name(dir: Direction) -> &'static str {
