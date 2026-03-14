@@ -44,7 +44,7 @@ impl Enemy {
     }
 
     pub fn size(&self) -> Vec2 {
-        vec2(52.0, 52.0)
+        vec2(13.0, 13.0)
     }
 
     pub fn render_pos(&self, alpha: f32) -> Vec2 {

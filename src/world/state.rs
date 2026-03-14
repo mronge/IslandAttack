@@ -50,8 +50,8 @@ impl World {
                         enemies.push(Enemy::new(center, kind));
                     }
                     TileKind::HostageCage => {
-                        hostages.push(Hostage::new(center + vec2(-28.0, 12.0), tile));
-                        hostages.push(Hostage::new(center + vec2(28.0, 12.0), tile));
+                        hostages.push(Hostage::new(center + vec2(-7.0, 3.0), tile));
+                        hostages.push(Hostage::new(center + vec2(7.0, 3.0), tile));
                     }
                     _ => {}
                 }

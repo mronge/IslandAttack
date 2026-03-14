@@ -30,8 +30,11 @@ fn draw_ground_tiles(assets: &Assets, world: &World, top_left: Vec2, editor_mode
             let tile = &world.map.tiles[y as usize * world.map.width + x as usize];
             let screen_pos =
                 world.map.tile_center(tile_pos) - top_left - vec2(TILE_SIZE * 0.5, TILE_SIZE * 0.5);
-            let sprite_name = ground_sprite_name(tile.kind, tile_pos);
-            draw_sprite_top_left_snapped(assets, sprite_name, screen_pos, WHITE);
+            draw_sprite_top_left_snapped(assets, grass_sprite_name(tile_pos), screen_pos, WHITE);
+
+            if let Some(sprite_name) = terrain_overlay_name(world, tile_pos, tile.kind) {
+                draw_sprite_top_left_snapped(assets, &sprite_name, screen_pos, WHITE);
+            }
 
             if editor_mode {
                 draw_rectangle_lines(
@@ -142,8 +145,8 @@ fn draw_entities(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
                         (color_u8!(255, 210, 210, 255), color_u8!(255, 80, 60, 255))
                     }
                 };
-                draw_circle(pos.x, pos.y, 10.0, outer);
-                draw_circle(pos.x, pos.y, 4.0, inner);
+                draw_circle(pos.x, pos.y, 2.5, outer);
+                draw_circle(pos.x, pos.y, 1.0, inner);
             }
             BulletKind::Rocket => {
                 let dir = if bullet.vel.length_squared() > 0.0 {
@@ -151,17 +154,17 @@ fn draw_entities(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
                 } else {
                     vec2(1.0, 0.0)
                 };
-                let tail = pos - dir * 18.0;
+                let tail = pos - dir * 4.5;
                 draw_line(
                     tail.x,
                     tail.y,
                     pos.x,
                     pos.y,
-                    8.0,
+                    2.0,
                     color_u8!(120, 48, 32, 220),
                 );
-                draw_circle(pos.x, pos.y, 11.0, color_u8!(255, 228, 190, 255));
-                draw_circle(pos.x, pos.y, 6.0, color_u8!(255, 106, 48, 255));
+                draw_circle(pos.x, pos.y, 3.0, color_u8!(255, 228, 190, 255));
+                draw_circle(pos.x, pos.y, 1.5, color_u8!(255, 106, 48, 255));
             }
         }
     }
@@ -276,21 +279,27 @@ fn visible_tile_bounds(world: &World, top_left: Vec2, padding_tiles: i32) -> (i3
     (min_x, max_x, min_y, max_y)
 }
 
-fn ground_sprite_name(kind: TileKind, tile_pos: IVec2) -> &'static str {
-    const GROUND: [&str; 4] = ["ground_0", "ground_1", "ground_2", "ground_3"];
-    const ROAD: [&str; 4] = ["road_0", "road_1", "road_2", "road_3"];
-    const WATER: [&str; 2] = ["water_0", "water_1"];
-    let variant = ((tile_pos.x.rem_euclid(2) * 2) + tile_pos.y.rem_euclid(2)) as usize;
+fn grass_sprite_name(tile_pos: IVec2) -> &'static str {
+    const GROUND: [&str; 6] = [
+        "ground_0", "ground_1", "ground_2", "ground_3", "ground_4", "ground_5",
+    ];
+    let variant = terrain_hash(tile_pos).rem_euclid(GROUND.len() as i32) as usize;
+    GROUND[variant]
+}
+
+fn terrain_overlay_name(world: &World, tile_pos: IVec2, kind: TileKind) -> Option<String> {
     match kind {
-        TileKind::Grass => GROUND[variant],
-        TileKind::Road => ROAD[variant],
-        TileKind::Water => WATER[variant % 2],
-        TileKind::Rubble => ROAD[variant],
-        TileKind::Wall
-        | TileKind::HostageCage
-        | TileKind::Extraction
-        | TileKind::EnemySpawn
-        | TileKind::PlayerSpawn => GROUND[variant],
+        TileKind::Road | TileKind::Rubble => Some(format!(
+            "road_overlay_{}_{}",
+            macro_terrain_hash(tile_pos, 4).rem_euclid(4),
+            connection_mask(world, tile_pos, kind)
+        )),
+        TileKind::Water => Some(format!(
+            "water_overlay_{}_{}",
+            macro_terrain_hash(tile_pos, 4).rem_euclid(4),
+            connection_mask(world, tile_pos, kind)
+        )),
+        _ => None,
     }
 }
 
@@ -365,4 +374,38 @@ fn enemy_rotation(to_player: Vec2) -> f32 {
     } else {
         to_player.y.atan2(to_player.x) + std::f32::consts::FRAC_PI_2
     }
+}
+
+fn terrain_hash(tile_pos: IVec2) -> i32 {
+    tile_pos.x * 31 + tile_pos.y * 57 + tile_pos.x * tile_pos.y * 3
+}
+
+fn macro_terrain_hash(tile_pos: IVec2, region: i32) -> i32 {
+    let cell = ivec2(tile_pos.x.div_euclid(region), tile_pos.y.div_euclid(region));
+    terrain_hash(cell)
+}
+
+fn connection_mask(world: &World, tile_pos: IVec2, kind: TileKind) -> u8 {
+    let same = |other: Option<TileKind>| match kind {
+        TileKind::Road | TileKind::Rubble => {
+            matches!(other, Some(TileKind::Road) | Some(TileKind::Rubble))
+        }
+        TileKind::Water => matches!(other, Some(TileKind::Water)),
+        _ => false,
+    };
+
+    let mut mask = 0u8;
+    if same(world.map.tile_kind(tile_pos + ivec2(0, -1))) {
+        mask |= 0b0001;
+    }
+    if same(world.map.tile_kind(tile_pos + ivec2(1, 0))) {
+        mask |= 0b0010;
+    }
+    if same(world.map.tile_kind(tile_pos + ivec2(0, 1))) {
+        mask |= 0b0100;
+    }
+    if same(world.map.tile_kind(tile_pos + ivec2(-1, 0))) {
+        mask |= 0b1000;
+    }
+    mask
 }

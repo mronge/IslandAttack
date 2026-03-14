@@ -24,7 +24,7 @@ impl Hostage {
             pos,
             home_tile,
             state: HostageState::Captive,
-            speed: 320.0,
+            speed: 80.0,
         }
     }
 
@@ -35,10 +35,10 @@ impl Hostage {
 
 pub fn rider_offset(slot: usize) -> Vec2 {
     match slot {
-        0 => vec2(-42.0, 44.0),
-        1 => vec2(42.0, 44.0),
-        2 => vec2(-42.0, 86.0),
-        3 => vec2(42.0, 86.0),
-        _ => vec2(0.0, 44.0 + (slot as f32 * 20.0)),
+        0 => vec2(-11.0, 11.0),
+        1 => vec2(11.0, 11.0),
+        2 => vec2(-11.0, 22.0),
+        3 => vec2(11.0, 22.0),
+        _ => vec2(0.0, 11.0 + (slot as f32 * 5.0)),
     }
 }

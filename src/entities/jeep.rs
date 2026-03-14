@@ -50,7 +50,7 @@ impl Jeep {
     }
 
     pub fn size(&self) -> Vec2 {
-        vec2(118.0, 136.0)
+        vec2(30.0, 34.0)
     }
 
     pub fn render_pos(&self, alpha: f32) -> Vec2 {
