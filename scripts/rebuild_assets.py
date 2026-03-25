@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 from PIL.ImageFilter import MaxFilter
 
 
@@ -15,6 +15,10 @@ FINAL_DIR.mkdir(parents=True, exist_ok=True)
 
 SOURCE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 PREVIEW_SCALE = 3
+GROUND_VARIANT_COUNT = 6
+ROAD_VARIANT_COUNT = 4
+WATER_VARIANT_COUNT = 4
+CARDINAL_MASKS = range(16)
 OBSOLETE_OUTPUTS = (
     "metasprite_preview.png",
     "metasprite_preview_x6.png",
@@ -35,23 +39,23 @@ class AssetSpec:
 
 
 ASSET_SPECS: dict[str, AssetSpec] = {
-    "jeep_up": AssetSpec("jeep_up", (192, 192), (96, 96)),
-    "jeep_right": AssetSpec("jeep_right", (192, 192), (96, 96)),
-    "jeep_down": AssetSpec("jeep_down", (192, 192), (96, 96)),
-    "jeep_left": AssetSpec("jeep_left", (192, 192), (96, 96)),
-    "enemy_commando": AssetSpec("enemy_commando", (64, 64), (32, 32)),
-    "enemy_rocketeer": AssetSpec("enemy_rocketeer", (64, 64), (32, 32)),
-    "enemy_soldier": AssetSpec("enemy_soldier", (64, 64), (32, 32)),
-    "hostage": AssetSpec("hostage", (64, 64), (32, 32)),
-    "explosion": AssetSpec("explosion", (96, 96), (48, 48)),
-    "grass_tile": AssetSpec("grass_tile", (128, 128), (0, 0)),
-    "road_tile": AssetSpec("road_tile", (128, 128), (0, 0)),
-    "water_tile": AssetSpec("water_tile", (128, 128), (0, 0)),
-    "wall_tile": AssetSpec("wall_tile", (128, 128), (0, 0)),
-    "cage_tile": AssetSpec("cage_tile", (128, 128), (0, 0)),
-    "extraction_tile": AssetSpec("extraction_tile", (128, 128), (0, 0)),
-    "bunker_turret": AssetSpec("bunker_turret", (256, 256), (128, 128)),
-    "palm_tree": AssetSpec("palm_tree", (192, 256), (96, 220)),
+    "jeep_up": AssetSpec("jeep_up", (48, 48), (24, 24)),
+    "jeep_right": AssetSpec("jeep_right", (48, 48), (24, 24)),
+    "jeep_down": AssetSpec("jeep_down", (48, 48), (24, 24)),
+    "jeep_left": AssetSpec("jeep_left", (48, 48), (24, 24)),
+    "enemy_commando": AssetSpec("enemy_commando", (16, 16), (8, 8)),
+    "enemy_rocketeer": AssetSpec("enemy_rocketeer", (16, 16), (8, 8)),
+    "enemy_soldier": AssetSpec("enemy_soldier", (16, 16), (8, 8)),
+    "hostage": AssetSpec("hostage", (16, 16), (8, 8)),
+    "explosion": AssetSpec("explosion", (24, 24), (12, 12)),
+    "grass_tile": AssetSpec("grass_tile", (32, 32), (0, 0)),
+    "road_tile": AssetSpec("road_tile", (32, 32), (0, 0)),
+    "water_tile": AssetSpec("water_tile", (32, 32), (0, 0)),
+    "wall_tile": AssetSpec("wall_tile", (32, 32), (0, 0)),
+    "cage_tile": AssetSpec("cage_tile", (32, 32), (0, 0)),
+    "extraction_tile": AssetSpec("extraction_tile", (32, 32), (0, 0)),
+    "bunker_turret": AssetSpec("bunker_turret", (64, 64), (32, 32)),
+    "palm_tree": AssetSpec("palm_tree", (48, 64), (24, 55)),
 }
 
 
@@ -210,6 +214,46 @@ def fit_tile_to_size(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     return image.resize(size, Image.Resampling.NEAREST)
 
 
+def load_tile_variant_set(
+    names: list[str], size: tuple[int, int], count: int
+) -> list[Image.Image]:
+    variants: list[Image.Image] = []
+    seen: set[bytes] = set()
+
+    for name in names:
+        path = find_source_path(name)
+        if path is None:
+            continue
+        base = fit_tile_to_size(load_source_image(name, size), size)
+        for image in build_variants(base):
+            key = image.tobytes()
+            if key in seen:
+                continue
+            seen.add(key)
+            variants.append(image)
+            if len(variants) >= count:
+                return variants
+
+    if not variants:
+        raise FileNotFoundError(f"missing tile sources for {names[0]}")
+    return variants
+
+
+def color_shift(image: Image.Image, red: float, green: float, blue: float) -> Image.Image:
+    shifted = image.copy().convert("RGBA")
+    pixels = shifted.load()
+    for y in range(shifted.height):
+        for x in range(shifted.width):
+            r, g, b, a = pixels[x, y]
+            pixels[x, y] = (
+                max(0, min(255, int(round(r * red)))),
+                max(0, min(255, int(round(g * green)))),
+                max(0, min(255, int(round(b * blue)))),
+                a,
+            )
+    return shifted
+
+
 def cleanup_jeep_image(image: Image.Image) -> Image.Image:
     rgba = image.convert("RGBA")
     core = Image.new("L", rgba.size, 0)
@@ -250,6 +294,55 @@ def build_variants(base: Image.Image) -> list[Image.Image]:
     ]
 
 
+def build_transition_mask(
+    size: tuple[int, int],
+    mask: int,
+    *,
+    inset: int,
+    radius: int,
+) -> Image.Image:
+    if mask == 0b1111:
+        return Image.new("L", size, 255)
+
+    width, height = size
+    mask_image = Image.new("L", size, 255)
+    draw = ImageDraw.Draw(mask_image)
+
+    if mask & 0b0001 == 0:
+        draw.rectangle((0, 0, width, inset), fill=0)
+    if mask & 0b0010 == 0:
+        draw.rectangle((width - inset, 0, width, height), fill=0)
+    if mask & 0b0100 == 0:
+        draw.rectangle((0, height - inset, width, height), fill=0)
+    if mask & 0b1000 == 0:
+        draw.rectangle((0, 0, inset, height), fill=0)
+
+    diameter = radius * 2
+    if mask & 0b0001 == 0 and mask & 0b1000 == 0:
+        draw.pieslice((0, 0, diameter, diameter), 180, 270, fill=0)
+    if mask & 0b0001 == 0 and mask & 0b0010 == 0:
+        draw.pieslice((width - diameter, 0, width, diameter), 270, 360, fill=0)
+    if mask & 0b0100 == 0 and mask & 0b1000 == 0:
+        draw.pieslice((0, height - diameter, diameter, height), 90, 180, fill=0)
+    if mask & 0b0100 == 0 and mask & 0b0010 == 0:
+        draw.pieslice((width - diameter, height - diameter, width, height), 0, 90, fill=0)
+
+    return mask_image
+
+
+def build_transition_overlay(
+    texture: Image.Image,
+    mask: int,
+    *,
+    inset: int,
+    radius: int,
+) -> Image.Image:
+    alpha = build_transition_mask(texture.size, mask, inset=inset, radius=radius)
+    overlay = Image.new("RGBA", texture.size, (0, 0, 0, 0))
+    overlay.paste(texture, (0, 0), alpha)
+    return overlay
+
+
 def save(name: str, image: Image.Image) -> str:
     path = FINAL_DIR / f"{name}.png"
     image.save(path)
@@ -280,17 +373,58 @@ def export_assets() -> dict[str, dict[str, float | str]]:
             image = cleanup_jeep_image(image)
         manifest[name] = manifest_entry(save(name, image), spec.draw_size, spec.anchor)
 
-    grass = fit_tile_to_size(load_source_image("grass_tile", ASSET_SPECS["grass_tile"].draw_size), ASSET_SPECS["grass_tile"].draw_size)
-    road = fit_tile_to_size(load_source_image("road_tile", ASSET_SPECS["road_tile"].draw_size), ASSET_SPECS["road_tile"].draw_size)
-    water = fit_tile_to_size(load_source_image("water_tile", ASSET_SPECS["water_tile"].draw_size), ASSET_SPECS["water_tile"].draw_size)
+    grass_base = fit_tile_to_size(
+        load_source_image("grass_tile", ASSET_SPECS["grass_tile"].draw_size),
+        ASSET_SPECS["grass_tile"].draw_size,
+    )
+    grass_variants = [
+        grass_base,
+        grass_base.transpose(Image.Transpose.FLIP_LEFT_RIGHT),
+        grass_base.transpose(Image.Transpose.FLIP_TOP_BOTTOM),
+        grass_base.transpose(Image.Transpose.ROTATE_180),
+        color_shift(grass_base, 0.96, 1.00, 0.95),
+        color_shift(grass_base, 1.04, 1.03, 0.98),
+    ][:GROUND_VARIANT_COUNT]
+    road_variants = load_tile_variant_set(
+        ["road_tile", "road_tile_alt_1"],
+        ASSET_SPECS["road_tile"].draw_size,
+        ROAD_VARIANT_COUNT,
+    )
+    water_variants = load_tile_variant_set(
+        ["water_tile", "water_tile_alt_1"],
+        ASSET_SPECS["water_tile"].draw_size,
+        WATER_VARIANT_COUNT,
+    )
     wall = fit_tile_to_size(load_source_image("wall_tile", ASSET_SPECS["wall_tile"].draw_size), ASSET_SPECS["wall_tile"].draw_size)
 
-    for idx, image in enumerate(build_variants(grass)):
+    for idx, image in enumerate(grass_variants):
         manifest[f"ground_{idx}"] = manifest_entry(save(f"ground_{idx}", image), ASSET_SPECS["grass_tile"].draw_size, (0, 0))
-    for idx, image in enumerate(build_variants(road)):
-        manifest[f"road_{idx}"] = manifest_entry(save(f"road_{idx}", image), ASSET_SPECS["road_tile"].draw_size, (0, 0))
-    for idx, image in enumerate(build_variants(water)[:2]):
-        manifest[f"water_{idx}"] = manifest_entry(save(f"water_{idx}", image), ASSET_SPECS["water_tile"].draw_size, (0, 0))
+    for variant, image in enumerate(road_variants):
+        manifest[f"road_fill_{variant}"] = manifest_entry(
+            save(f"road_fill_{variant}", image),
+            ASSET_SPECS["road_tile"].draw_size,
+            (0, 0),
+        )
+        for mask in CARDINAL_MASKS:
+            overlay = build_transition_overlay(image, mask, inset=7, radius=12)
+            manifest[f"road_overlay_{variant}_{mask}"] = manifest_entry(
+                save(f"road_overlay_{variant}_{mask}", overlay),
+                ASSET_SPECS["road_tile"].draw_size,
+                (0, 0),
+            )
+    for variant, image in enumerate(water_variants):
+        manifest[f"water_fill_{variant}"] = manifest_entry(
+            save(f"water_fill_{variant}", image),
+            ASSET_SPECS["water_tile"].draw_size,
+            (0, 0),
+        )
+        for mask in CARDINAL_MASKS:
+            overlay = build_transition_overlay(image, mask, inset=5, radius=15)
+            manifest[f"water_overlay_{variant}_{mask}"] = manifest_entry(
+                save(f"water_overlay_{variant}_{mask}", overlay),
+                ASSET_SPECS["water_tile"].draw_size,
+                (0, 0),
+            )
     for idx, image in enumerate(build_variants(wall)[:2]):
         manifest[f"wall_{idx}"] = manifest_entry(save(f"wall_{idx}", image), ASSET_SPECS["wall_tile"].draw_size, (0, 0))
 
@@ -310,9 +444,10 @@ def build_preview(manifest: dict[str, dict[str, float | str]]) -> None:
         "explosion",
         "ground_0",
         "ground_1",
-        "road_0",
-        "road_1",
-        "water_0",
+        "road_fill_0",
+        "road_overlay_0_9",
+        "water_fill_0",
+        "water_overlay_0_3",
         "wall_0",
         "wall_1",
         "cage_tile",
