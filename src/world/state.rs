@@ -11,7 +11,8 @@ pub struct World {
 impl World {
     pub fn load() -> Self {
         let map = ImportedMap::load();
-        let player_spawn = map.default_spawn_point();
+        let probe = Jeep::new(Vec2::ZERO);
+        let player_spawn = map.default_spawn_point_for(probe.size());
         Self {
             map,
             player: Jeep::new(player_spawn),
