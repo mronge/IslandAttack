@@ -7,6 +7,7 @@ const MANIFEST_PATH: &str = "output/imagegen/final/manifest.json";
 
 #[derive(Clone)]
 pub struct Assets {
+    atlas: Texture2D,
     sprites: HashMap<String, SpriteAsset>,
 }
 
@@ -31,6 +32,15 @@ impl Assets {
         let raw = fs::read_to_string(MANIFEST_PATH).expect("failed to read asset manifest");
         let manifest: HashMap<String, ManifestEntry> =
             serde_json::from_str(&raw).expect("failed to parse asset manifest");
+        let atlas = load_texture(crate::constants::MAP_SPRITESHEET_PATH)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load map spritesheet: {}",
+                    crate::constants::MAP_SPRITESHEET_PATH
+                )
+            });
+        atlas.set_filter(FilterMode::Nearest);
 
         let mut sprites = HashMap::new();
         for (name, entry) in manifest {
@@ -48,7 +58,11 @@ impl Assets {
             );
         }
 
-        Self { sprites }
+        Self { atlas, sprites }
+    }
+
+    pub fn atlas(&self) -> &Texture2D {
+        &self.atlas
     }
 
     pub fn sprite(&self, name: &str) -> &SpriteAsset {

@@ -28,10 +28,6 @@ pub struct Jeep {
     pub vel: Vec2,
     pub dir: Direction,
     pub speed: f32,
-    pub fire_cooldown: f32,
-    pub hp: i32,
-    pub invuln_timer: f32,
-    pub rider_capacity: usize,
 }
 
 impl Jeep {
@@ -42,10 +38,6 @@ impl Jeep {
             vel: Vec2::ZERO,
             dir: Direction::Up,
             speed: JEEP_SPEED,
-            fire_cooldown: 0.0,
-            hp: 3,
-            invuln_timer: 0.0,
-            rider_capacity: 4,
         }
     }
 

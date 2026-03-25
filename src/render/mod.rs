@@ -1,11 +1,9 @@
 pub mod camera;
-pub mod hud;
 pub mod sprites;
 
 use crate::assets::Assets;
 use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
-use crate::game::SceneMode;
-use crate::world::{TileKind, World};
+use crate::world::World;
 use macroquad::prelude::*;
 
 pub struct Renderer {
@@ -19,23 +17,8 @@ impl Renderer {
         Self { target }
     }
 
-    pub fn draw(
-        &mut self,
-        assets: &Assets,
-        world: &World,
-        mode: SceneMode,
-        play_camera_center: Vec2,
-        editor_camera_center: Vec2,
-        brush: TileKind,
-        status_text: &str,
-        alpha: f32,
-        replay_mode: &str,
-        replay_detail: &str,
-    ) {
-        let camera_center = match mode {
-            SceneMode::Play => camera::clamp_camera_center(play_camera_center, world),
-            SceneMode::Editor => camera::clamp_camera_center(editor_camera_center, world),
-        };
+    pub fn draw(&mut self, assets: &Assets, world: &World, play_camera_center: Vec2, alpha: f32) {
+        let camera_center = camera::clamp_camera_center(play_camera_center, world);
         let top_left = camera_center - vec2(VIEW_WIDTH * 0.5, VIEW_HEIGHT * 0.5);
 
         set_camera(&Camera2D {
@@ -45,21 +28,15 @@ impl Renderer {
             ..Default::default()
         });
         clear_background(BLACK);
-        sprites::draw_world(
-            assets,
-            world,
-            top_left,
-            matches!(mode, SceneMode::Editor),
-            alpha,
-        );
-        hud::draw(world, mode, brush, status_text, replay_mode, replay_detail);
+        sprites::draw_world(assets, world, top_left, alpha);
 
         set_default_camera();
         clear_background(BLACK);
 
         let scale = (screen_width() / VIEW_WIDTH)
             .min(screen_height() / VIEW_HEIGHT)
-            .max(0.1);
+            .floor()
+            .max(1.0);
         let dest = vec2(VIEW_WIDTH * scale, VIEW_HEIGHT * scale);
         let origin = vec2(
             (screen_width() - dest.x) * 0.5,
@@ -76,6 +53,14 @@ impl Renderer {
                 flip_y: true,
                 ..Default::default()
             },
+        );
+
+        draw_text(
+            "WASD / ARROWS MOVE   R RESET",
+            origin.x + 18.0,
+            origin.y + dest.y - 18.0,
+            24.0,
+            WHITE,
         );
     }
 }

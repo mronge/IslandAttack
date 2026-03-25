@@ -1,5 +1,4 @@
 use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
-use crate::render::sprites::viewport_scale;
 use crate::world::World;
 use macroquad::prelude::*;
 
@@ -56,23 +55,4 @@ pub fn clamp_camera_center(center: Vec2, world: &World) -> Vec2 {
     };
 
     vec2(x, y)
-}
-
-pub fn screen_to_world(screen: Vec2, camera_center: Vec2) -> Option<Vec2> {
-    let (scale, origin) = viewport_scale();
-    if scale <= 0.0 {
-        return None;
-    }
-
-    let local = screen - origin;
-    if local.x < 0.0
-        || local.y < 0.0
-        || local.x > VIEW_WIDTH * scale
-        || local.y > VIEW_HEIGHT * scale
-    {
-        return None;
-    }
-
-    let internal = local / scale;
-    Some(camera_center - vec2(VIEW_WIDTH, VIEW_HEIGHT) * 0.5 + internal)
 }

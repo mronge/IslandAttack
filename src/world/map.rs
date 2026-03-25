@@ -1,87 +1,121 @@
-use crate::constants::TILE_SIZE;
+use crate::constants::MAP_PATH;
 use macroquad::prelude::{IVec2, Rect, Vec2, ivec2, vec2};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use std::fs;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TileKind {
-    Grass,
-    Road,
-    Water,
-    Wall,
-    Rubble,
-    EnemySpawn,
-    HostageCage,
-    Extraction,
-    PlayerSpawn,
+#[derive(Clone, Debug)]
+pub struct MapTile {
+    pub atlas_id: u16,
+    pub pos: IVec2,
 }
 
 #[derive(Clone, Debug)]
-pub struct Tile {
-    pub kind: TileKind,
-    pub hp: u8,
-}
-
-impl Tile {
-    pub fn new(kind: TileKind) -> Self {
-        Self {
-            hp: kind.max_hp(),
-            kind,
-        }
-    }
-}
-
-impl TileKind {
-    pub fn solid(self) -> bool {
-        matches!(self, Self::Water | Self::Wall | Self::HostageCage)
-    }
-
-    pub fn destructible(self) -> bool {
-        matches!(self, Self::Wall | Self::HostageCage)
-    }
-
-    pub fn max_hp(self) -> u8 {
-        match self {
-            Self::Wall => 3,
-            Self::HostageCage => 2,
-            _ => 0,
-        }
-    }
-
-    pub fn destroyed_variant(self) -> Self {
-        match self {
-            Self::Wall | Self::HostageCage => Self::Rubble,
-            _ => self,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct LevelData {
-    pub width: usize,
-    pub height: usize,
-    pub tiles: Vec<TileKind>,
+pub struct MapLayer {
+    pub name: String,
+    pub collider: bool,
+    pub tiles: Vec<MapTile>,
 }
 
 #[derive(Clone, Debug)]
-pub struct TileMap {
+pub struct ImportedMap {
     pub width: usize,
     pub height: usize,
-    pub tiles: Vec<Tile>,
+    pub tile_size: f32,
+    pub layers: Vec<MapLayer>,
+    solid_tiles: Vec<bool>,
+    preferred_spawn_tiles: Vec<bool>,
 }
 
-impl TileMap {
-    pub fn from_level_data(level: &LevelData) -> Self {
+#[derive(Deserialize)]
+struct RawMap {
+    #[serde(rename = "mapWidth")]
+    map_width: usize,
+    #[serde(rename = "mapHeight")]
+    map_height: usize,
+    #[serde(rename = "tileSize")]
+    tile_size: u16,
+    layers: Vec<RawLayer>,
+}
+
+#[derive(Deserialize)]
+struct RawLayer {
+    name: String,
+    #[serde(default)]
+    collider: bool,
+    tiles: Vec<RawTile>,
+}
+
+#[derive(Deserialize)]
+struct RawTile {
+    id: String,
+    x: i32,
+    y: i32,
+}
+
+impl ImportedMap {
+    pub fn load() -> Self {
+        let raw = fs::read_to_string(MAP_PATH)
+            .unwrap_or_else(|_| panic!("failed to read imported map: {MAP_PATH}"));
+        let raw_map: RawMap =
+            serde_json::from_str(&raw).unwrap_or_else(|_| panic!("failed to parse map: {MAP_PATH}"));
+
+        let layers: Vec<MapLayer> = raw_map
+            .layers
+            .into_iter()
+            .map(|layer| MapLayer {
+                name: layer.name,
+                collider: layer.collider,
+                tiles: layer
+                    .tiles
+                    .into_iter()
+                    .map(|tile| MapTile {
+                        atlas_id: tile.id.parse().expect("invalid tile id in imported map"),
+                        pos: ivec2(tile.x, tile.y),
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        let mut solid_tiles = vec![true; raw_map.map_width * raw_map.map_height];
+        let mut walkable_tiles = vec![false; raw_map.map_width * raw_map.map_height];
+        let mut preferred_spawn_tiles = vec![false; raw_map.map_width * raw_map.map_height];
+
+        // The exported map order is top-to-bottom, so walk it in reverse and let
+        // upper layers overwrite lower ones to derive gameplay from the visible tile.
+        for layer in layers.iter().rev() {
+            let is_solid = layer_is_solid(layer);
+            let is_preferred_spawn =
+                !is_solid && layer_name_matches(&layer.name, &["sand", "ground", "grass"]);
+
+            for tile in &layer.tiles {
+                let Some(idx) = tile_index(raw_map.map_width, raw_map.map_height, tile.pos) else {
+                    continue;
+                };
+
+                solid_tiles[idx] = is_solid;
+                walkable_tiles[idx] = !is_solid;
+                preferred_spawn_tiles[idx] = is_preferred_spawn;
+            }
+        }
+
+        if !preferred_spawn_tiles.iter().any(|tile| *tile) {
+            preferred_spawn_tiles.clone_from(&walkable_tiles);
+        }
+
         Self {
-            width: level.width,
-            height: level.height,
-            tiles: level.tiles.iter().copied().map(Tile::new).collect(),
+            width: raw_map.map_width,
+            height: raw_map.map_height,
+            tile_size: f32::from(raw_map.tile_size),
+            layers,
+            solid_tiles,
+            preferred_spawn_tiles,
         }
     }
 
     pub fn dimensions_px(&self) -> Vec2 {
         vec2(
-            self.width as f32 * TILE_SIZE,
-            self.height as f32 * TILE_SIZE,
+            self.width as f32 * self.tile_size,
+            self.height as f32 * self.tile_size,
         )
     }
 
@@ -89,58 +123,31 @@ impl TileMap {
         tile.x >= 0 && tile.y >= 0 && tile.x < self.width as i32 && tile.y < self.height as i32
     }
 
-    pub fn index(&self, tile: IVec2) -> Option<usize> {
-        if self.in_bounds(tile) {
-            Some(tile.y as usize * self.width + tile.x as usize)
-        } else {
-            None
-        }
-    }
-
-    pub fn tile(&self, tile: IVec2) -> Option<&Tile> {
-        self.index(tile).map(|idx| &self.tiles[idx])
-    }
-
-    pub fn tile_mut(&mut self, tile: IVec2) -> Option<&mut Tile> {
-        self.index(tile).map(move |idx| &mut self.tiles[idx])
-    }
-
-    pub fn tile_kind(&self, tile: IVec2) -> Option<TileKind> {
-        self.tile(tile).map(|tile| tile.kind)
-    }
-
-    pub fn world_to_tile(&self, world: Vec2) -> Option<IVec2> {
-        let tile = ivec2(
-            (world.x / TILE_SIZE).floor() as i32,
-            (world.y / TILE_SIZE).floor() as i32,
-        );
-        self.in_bounds(tile).then_some(tile)
+    pub fn tile_index(&self, tile: IVec2) -> Option<usize> {
+        tile_index(self.width, self.height, tile)
     }
 
     pub fn tile_center(&self, tile: IVec2) -> Vec2 {
         vec2(
-            tile.x as f32 * TILE_SIZE + TILE_SIZE * 0.5,
-            tile.y as f32 * TILE_SIZE + TILE_SIZE * 0.5,
+            tile.x as f32 * self.tile_size + self.tile_size * 0.5,
+            tile.y as f32 * self.tile_size + self.tile_size * 0.5,
         )
     }
 
     pub fn collides_rect(&self, rect: Rect) -> bool {
         let min = ivec2(
-            (rect.x / TILE_SIZE).floor() as i32,
-            (rect.y / TILE_SIZE).floor() as i32,
+            (rect.x / self.tile_size).floor() as i32,
+            (rect.y / self.tile_size).floor() as i32,
         );
         let max = ivec2(
-            ((rect.x + rect.w - 0.001) / TILE_SIZE).floor() as i32,
-            ((rect.y + rect.h - 0.001) / TILE_SIZE).floor() as i32,
+            ((rect.x + rect.w - 0.001) / self.tile_size).floor() as i32,
+            ((rect.y + rect.h - 0.001) / self.tile_size).floor() as i32,
         );
 
         for y in min.y..=max.y {
             for x in min.x..=max.x {
                 let tile = ivec2(x, y);
-                if !self.in_bounds(tile) {
-                    return true;
-                }
-                if self.tile_kind(tile).is_some_and(TileKind::solid) {
+                if !self.in_bounds(tile) || self.is_solid(tile) {
                     return true;
                 }
             }
@@ -149,89 +156,53 @@ impl TileMap {
         false
     }
 
-    pub fn damage_at_world(&mut self, world: Vec2, damage: u8) -> bool {
-        let Some(tile_pos) = self.world_to_tile(world) else {
-            return false;
-        };
+    pub fn is_solid(&self, tile: IVec2) -> bool {
+        self.tile_index(tile)
+            .and_then(|idx| self.solid_tiles.get(idx))
+            .copied()
+            .unwrap_or(true)
+    }
 
-        let Some(tile) = self.tile_mut(tile_pos) else {
-            return false;
-        };
+    pub fn default_spawn_point(&self) -> Vec2 {
+        let target = vec2(self.width as f32 * 0.5, self.height as f32 * 0.5);
+        let mut best_tile = None;
+        let mut best_distance = f32::MAX;
 
-        if tile.kind.destructible() {
-            tile.hp = tile.hp.saturating_sub(damage);
-            if tile.hp == 0 {
-                tile.kind = tile.kind.destroyed_variant();
+        for y in 0..self.height as i32 {
+            for x in 0..self.width as i32 {
+                let tile = ivec2(x, y);
+                let Some(idx) = self.tile_index(tile) else {
+                    continue;
+                };
+                if !self.preferred_spawn_tiles[idx] || self.solid_tiles[idx] {
+                    continue;
+                }
+
+                let tile_center = vec2(x as f32 + 0.5, y as f32 + 0.5);
+                let distance = tile_center.distance_squared(target);
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_tile = Some(tile);
+                }
             }
-            return true;
         }
 
-        tile.kind.solid()
+        best_tile
+            .map(|tile| self.tile_center(tile))
+            .unwrap_or_else(|| self.dimensions_px() * 0.5)
     }
 }
 
-pub fn default_level() -> LevelData {
-    fn set_rect(
-        tiles: &mut [TileKind],
-        width: usize,
-        x0: usize,
-        y0: usize,
-        w: usize,
-        h: usize,
-        kind: TileKind,
-    ) {
-        for y in y0..(y0 + h) {
-            for x in x0..(x0 + w) {
-                tiles[y * width + x] = kind;
-            }
-        }
-    }
+fn tile_index(width: usize, height: usize, tile: IVec2) -> Option<usize> {
+    (tile.x >= 0 && tile.y >= 0 && tile.x < width as i32 && tile.y < height as i32)
+        .then_some(tile.y as usize * width + tile.x as usize)
+}
 
-    let width = 44;
-    let height = 40;
-    let mut tiles = vec![TileKind::Grass; width * height];
+fn layer_is_solid(layer: &MapLayer) -> bool {
+    layer.collider || layer_name_matches(&layer.name, &["water", "wall", "collision", "layer_2"])
+}
 
-    for y in 0..height {
-        set_rect(&mut tiles, width, 20, y, 4, 1, TileKind::Road);
-    }
-
-    set_rect(&mut tiles, width, 4, 7, 36, 3, TileKind::Road);
-    set_rect(&mut tiles, width, 6, 28, 32, 3, TileKind::Road);
-    set_rect(&mut tiles, width, 9, 18, 26, 2, TileKind::Road);
-
-    set_rect(&mut tiles, width, 2, 3, 8, 8, TileKind::Water);
-    set_rect(&mut tiles, width, 33, 20, 8, 9, TileKind::Water);
-
-    for y in 0..4 {
-        set_rect(&mut tiles, width, 11, y, 9, 1, TileKind::Wall);
-        set_rect(&mut tiles, width, 24, y, 9, 1, TileKind::Wall);
-    }
-
-    set_rect(&mut tiles, width, 11, 12, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 29, 13, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 8, 23, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 24, 23, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 15, 33, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 31, 33, 2, 2, TileKind::Wall);
-
-    tiles[37 * width + 22] = TileKind::PlayerSpawn;
-    set_rect(&mut tiles, width, 21, 1, 2, 2, TileKind::Extraction);
-
-    tiles[15 * width + 16] = TileKind::HostageCage;
-    tiles[17 * width + 26] = TileKind::HostageCage;
-    tiles[27 * width + 12] = TileKind::HostageCage;
-    tiles[29 * width + 29] = TileKind::HostageCage;
-
-    tiles[10 * width + 14] = TileKind::EnemySpawn;
-    tiles[10 * width + 30] = TileKind::EnemySpawn;
-    tiles[20 * width + 9] = TileKind::EnemySpawn;
-    tiles[21 * width + 27] = TileKind::EnemySpawn;
-    tiles[31 * width + 17] = TileKind::EnemySpawn;
-    tiles[31 * width + 33] = TileKind::EnemySpawn;
-
-    LevelData {
-        width,
-        height,
-        tiles,
-    }
+fn layer_name_matches(name: &str, needles: &[&str]) -> bool {
+    let lower = name.to_ascii_lowercase();
+    needles.iter().any(|needle| lower.contains(needle))
 }
