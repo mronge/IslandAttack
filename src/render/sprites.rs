@@ -1,7 +1,7 @@
 use crate::assets::{Assets, DirectionalSpriteId, SpriteAsset};
 use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
 use crate::entities::{BulletOwner, EnemyKind};
-use crate::world::World;
+use crate::world::{World, rect_from_center};
 use macroquad::prelude::*;
 
 pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
@@ -25,6 +25,55 @@ pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
         jeep_size,
         WHITE,
     );
+}
+
+pub fn draw_collision_boxes(world: &World, top_left: Vec2, alpha: f32) {
+    draw_collision_tiles(world, top_left);
+
+    draw_collision_rect(
+        rect_from_center(world.player.render_pos(alpha), world.player.size()),
+        top_left,
+        color_u8!(80, 180, 255, 70),
+        color_u8!(140, 220, 255, 210),
+    );
+
+    for enemy in &world.enemies {
+        draw_collision_rect(
+            rect_from_center(enemy.render_pos(alpha), enemy.size()),
+            top_left,
+            color_u8!(255, 120, 120, 70),
+            color_u8!(255, 180, 180, 220),
+        );
+    }
+
+    for bullet in &world.bullets {
+        let pos = bullet.render_pos(alpha);
+        draw_collision_rect(
+            Rect::new(
+                pos.x - bullet.radius,
+                pos.y - bullet.radius,
+                bullet.radius * 2.0,
+                bullet.radius * 2.0,
+            ),
+            top_left,
+            Color::new(1.0, 1.0, 1.0, 0.16),
+            Color::new(1.0, 1.0, 1.0, 0.55),
+        );
+    }
+}
+
+fn draw_collision_tiles(world: &World, top_left: Vec2) {
+    let visible_world = Rect::new(top_left.x, top_left.y, VIEW_WIDTH, VIEW_HEIGHT);
+    for span in world.map.collision_spans_in_rect(visible_world) {
+        let screen_pos = world_to_screen(vec2(span.x, span.y), top_left);
+        draw_rectangle(
+            screen_pos.x,
+            screen_pos.y,
+            span.w,
+            span.h,
+            color_u8!(120, 255, 140, 70),
+        );
+    }
 }
 
 fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
@@ -143,6 +192,12 @@ fn draw_sprite_centered_sized(sprite: &SpriteAsset, center: Vec2, size: Vec2, ti
 
 fn world_to_screen(world_pos: Vec2, top_left: Vec2) -> Vec2 {
     vec2(world_pos.x - top_left.x, world_pos.y - top_left.y)
+}
+
+fn draw_collision_rect(rect: Rect, top_left: Vec2, fill: Color, outline: Color) {
+    let screen_pos = world_to_screen(vec2(rect.x, rect.y), top_left);
+    draw_rectangle(screen_pos.x, screen_pos.y, rect.w, rect.h, fill);
+    draw_rectangle_lines(screen_pos.x, screen_pos.y, rect.w, rect.h, 1.0, outline);
 }
 
 fn visible_tile_bounds(world: &World, top_left: Vec2, padding_tiles: i32) -> (i32, i32, i32, i32) {

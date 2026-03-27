@@ -204,6 +204,44 @@ impl ImportedMap {
         !self.collides_point(to)
     }
 
+    pub fn collision_spans_in_rect(&self, rect: Rect) -> Vec<Rect> {
+        let pixel_width = self.width * self.tile_size as usize;
+        let pixel_height = self.height * self.tile_size as usize;
+        let min_x = rect.x.floor().max(0.0) as i32;
+        let min_y = rect.y.floor().max(0.0) as i32;
+        let max_x = (rect.x + rect.w).ceil().min(pixel_width as f32) as i32;
+        let max_y = (rect.y + rect.h).ceil().min(pixel_height as f32) as i32;
+        let mut spans = Vec::new();
+
+        for y in min_y..max_y {
+            let row_start = y as usize * pixel_width;
+            let mut x = min_x;
+
+            while x < max_x {
+                let idx = row_start + x as usize;
+                if !self.collision_pixels[idx] {
+                    x += 1;
+                    continue;
+                }
+
+                let span_start = x;
+                x += 1;
+                while x < max_x && self.collision_pixels[row_start + x as usize] {
+                    x += 1;
+                }
+
+                spans.push(Rect::new(
+                    span_start as f32,
+                    y as f32,
+                    (x - span_start) as f32,
+                    1.0,
+                ));
+            }
+        }
+
+        spans
+    }
+
     pub fn is_solid(&self, tile: IVec2) -> bool {
         let Some(idx) = self.tile_index(tile) else {
             return true;

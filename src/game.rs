@@ -12,6 +12,7 @@ pub struct Game {
     pub prev_play_camera_center: Vec2,
     pub play_camera_center: Vec2,
     pub accumulator: f32,
+    pub show_collision_boxes: bool,
 }
 
 impl Game {
@@ -25,10 +26,15 @@ impl Game {
             prev_play_camera_center: play_camera_center,
             play_camera_center,
             accumulator: 0.0,
+            show_collision_boxes: false,
         }
     }
 
     pub fn frame(&mut self, frame_dt: f32) {
+        if is_key_pressed(KeyCode::H) {
+            self.show_collision_boxes = !self.show_collision_boxes;
+        }
+
         if is_key_pressed(KeyCode::R) {
             self.world.reset_player();
             self.play_camera_center = camera::initial_play_camera_center(&self.world);
@@ -53,7 +59,12 @@ impl Game {
         let interpolated_camera = self
             .prev_play_camera_center
             .lerp(self.play_camera_center, alpha);
-        self.renderer
-            .draw(&self.assets, &self.world, interpolated_camera, alpha);
+        self.renderer.draw(
+            &self.assets,
+            &self.world,
+            interpolated_camera,
+            alpha,
+            self.show_collision_boxes,
+        );
     }
 }

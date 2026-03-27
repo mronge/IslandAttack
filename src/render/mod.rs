@@ -18,7 +18,14 @@ impl Renderer {
         Self { target }
     }
 
-    pub fn draw(&mut self, assets: &Assets, world: &World, play_camera_center: Vec2, alpha: f32) {
+    pub fn draw(
+        &mut self,
+        assets: &Assets,
+        world: &World,
+        play_camera_center: Vec2,
+        alpha: f32,
+        show_collision_boxes: bool,
+    ) {
         let camera_center = camera::clamp_camera_center(play_camera_center, world);
         let top_left = camera_center - vec2(VIEW_WIDTH * 0.5, VIEW_HEIGHT * 0.5);
 
@@ -30,6 +37,9 @@ impl Renderer {
         });
         clear_background(BLACK);
         sprites::draw_world(assets, world, top_left, alpha);
+        if show_collision_boxes {
+            sprites::draw_collision_boxes(world, top_left, alpha);
+        }
 
         set_default_camera();
         clear_background(BLACK);

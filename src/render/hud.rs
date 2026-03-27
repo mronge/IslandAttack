@@ -5,7 +5,7 @@ pub fn draw(world: &World, origin: Vec2, dest: Vec2, scale: f32) {
     draw_top_bar(world, origin, scale);
 
     draw_text(
-        "WASD / ARROWS MOVE   R RESET",
+        "WASD / ARROWS MOVE   H HITBOXES   R RESET",
         origin.x + 18.0 * scale,
         origin.y + dest.y - 18.0 * scale,
         24.0 * scale,
