@@ -1,10 +1,5 @@
 use macroquad::prelude::*;
-use serde::Deserialize;
 use std::collections::HashMap;
-use std::fs;
-
-const MANIFEST_PATH: &str = "output/imagegen/final/manifest.json";
-const JEEP_SPRITESHEET_PATH: &str = "output/imagegen/raw/jeep.png";
 
 #[derive(Clone)]
 pub struct Assets {
@@ -20,20 +15,8 @@ pub struct SpriteAsset {
     pub anchor: Vec2,
 }
 
-#[derive(Deserialize)]
-struct ManifestEntry {
-    file: String,
-    draw_width: f32,
-    draw_height: f32,
-    anchor_x: f32,
-    anchor_y: f32,
-}
-
 impl Assets {
     pub async fn load() -> Self {
-        let raw = fs::read_to_string(MANIFEST_PATH).expect("failed to read asset manifest");
-        let manifest: HashMap<String, ManifestEntry> =
-            serde_json::from_str(&raw).expect("failed to parse asset manifest");
         let atlas = load_texture(crate::constants::MAP_SPRITESHEET_PATH)
             .await
             .unwrap_or_else(|_| {
@@ -43,27 +26,17 @@ impl Assets {
                 )
             });
         atlas.set_filter(FilterMode::Nearest);
-        let jeep_sheet = load_texture(JEEP_SPRITESHEET_PATH)
+        let jeep_sheet = load_texture(crate::constants::JEEP_SPRITESHEET_PATH)
             .await
-            .unwrap_or_else(|_| panic!("failed to load jeep spritesheet: {JEEP_SPRITESHEET_PATH}"));
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load jeep spritesheet: {}",
+                    crate::constants::JEEP_SPRITESHEET_PATH
+                )
+            });
         jeep_sheet.set_filter(FilterMode::Nearest);
 
         let mut sprites = HashMap::new();
-        for (name, entry) in manifest {
-            let texture = load_texture(&entry.file)
-                .await
-                .unwrap_or_else(|_| panic!("failed to load asset texture: {}", entry.file));
-            texture.set_filter(FilterMode::Nearest);
-            insert_sprite(
-                &mut sprites,
-                &name,
-                texture,
-                None,
-                vec2(entry.draw_width, entry.draw_height),
-                vec2(entry.anchor_x, entry.anchor_y),
-            );
-        }
-
         register_sheet_sprites(
             &mut sprites,
             &jeep_sheet,
