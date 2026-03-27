@@ -57,7 +57,7 @@ impl World {
         }
 
         if command.fire && self.player.fire_cooldown <= 0.0 {
-            let muzzle = self.player.pos + self.player.dir.as_vec() * 14.0;
+            let muzzle = self.player.pos + self.player.dir.as_vec() * (self.player.size().x * 0.62);
             self.bullets.push(Bullet::new(
                 muzzle,
                 self.player.dir.as_vec() * BULLET_SPEED,
@@ -97,7 +97,9 @@ impl World {
                         }
                     }
                     BulletOwner::Enemy => {
-                        if self.player.pos.distance(bullet.pos) <= bullet.radius + 11.0 {
+                        if self.player.pos.distance(bullet.pos)
+                            <= bullet.radius + self.player.size().x * 0.5
+                        {
                             player_hits += 1;
                             hit = true;
                         }

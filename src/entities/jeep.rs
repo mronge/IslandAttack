@@ -1,4 +1,4 @@
-use crate::constants::{JEEP_SPEED, PLAYER_MAX_HP};
+use crate::constants::{JEEP_COLLISION_SCALE, JEEP_SIZE, JEEP_SPEED, PLAYER_MAX_HP};
 use macroquad::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -61,8 +61,12 @@ impl Jeep {
         }
     }
 
+    pub fn render_size(&self) -> Vec2 {
+        vec2(JEEP_SIZE, JEEP_SIZE)
+    }
+
     pub fn size(&self) -> Vec2 {
-        vec2(22.0, 22.0)
+        self.render_size() * JEEP_COLLISION_SCALE
     }
 
     pub fn render_pos(&self, alpha: f32) -> Vec2 {

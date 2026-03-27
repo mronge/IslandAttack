@@ -10,7 +10,7 @@ pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     draw_bullets(world, top_left, alpha);
 
     let jeep_pos = world_to_screen(world.player.render_pos(alpha), top_left);
-    let jeep_size = vec2(world.map.tile_size, world.map.tile_size);
+    let jeep_size = world.player.render_size();
     draw_ellipse(
         jeep_pos.x,
         jeep_pos.y + jeep_size.y * 0.22,
