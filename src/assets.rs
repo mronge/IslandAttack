@@ -1,10 +1,11 @@
+use crate::entities::Direction;
 use macroquad::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct Assets {
     atlas: Texture2D,
-    sprites: HashMap<String, SpriteAsset>,
+    directional_sprites: HashMap<DirectionalSpriteId, DirectionalSpriteSet>,
 }
 
 #[derive(Clone)]
@@ -13,6 +14,20 @@ pub struct SpriteAsset {
     pub source: Option<Rect>,
     pub draw_size: Vec2,
     pub anchor: Vec2,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DirectionalSpriteId {
+    Jeep,
+    Soldier,
+}
+
+#[derive(Clone)]
+struct DirectionalSpriteSet {
+    up: SpriteAsset,
+    down: SpriteAsset,
+    left: SpriteAsset,
+    right: SpriteAsset,
 }
 
 impl Assets {
@@ -35,23 +50,49 @@ impl Assets {
                 )
             });
         jeep_sheet.set_filter(FilterMode::Nearest);
+        let soldier_sheet = load_texture(crate::constants::SOLDIER_SPRITESHEET_PATH)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load soldier spritesheet: {}",
+                    crate::constants::SOLDIER_SPRITESHEET_PATH
+                )
+            });
+        soldier_sheet.set_filter(FilterMode::Nearest);
 
-        let mut sprites = HashMap::new();
-        register_sheet_sprites(
-            &mut sprites,
+        let mut directional_sprites = HashMap::new();
+        register_directional_sheet_sprite_set(
+            &mut directional_sprites,
+            DirectionalSpriteId::Jeep,
             &jeep_sheet,
             vec2(64.0, 64.0),
-            &[
-                ("jeep_up", 5, vec2(64.0, 64.0), vec2(32.0, 32.0)),
-                ("jeep_down", 1, vec2(64.0, 64.0), vec2(32.0, 32.0)),
-                ("jeep_left", 7, vec2(64.0, 64.0), vec2(32.0, 32.0)),
-                ("jeep_right", 3, vec2(64.0, 64.0), vec2(32.0, 32.0)),
-            ],
+            DirectionalFrameMap {
+                up: 5,
+                down: 1,
+                left: 7,
+                right: 3,
+            },
+            vec2(64.0, 64.0),
+            vec2(32.0, 32.0),
+        );
+        register_directional_sheet_sprite_set(
+            &mut directional_sprites,
+            DirectionalSpriteId::Soldier,
+            &soldier_sheet,
+            vec2(32.0, 32.0),
+            DirectionalFrameMap {
+                up: 4,
+                right: 6,
+                down: 0,
+                left: 2,
+            },
+            vec2(32.0, 32.0),
+            vec2(16.0, 16.0),
         );
 
         Self {
             atlas,
-            sprites,
+            directional_sprites,
         }
     }
 
@@ -59,55 +100,67 @@ impl Assets {
         &self.atlas
     }
 
-    pub fn sprite(&self, name: &str) -> &SpriteAsset {
-        self.sprites
-            .get(name)
-            .unwrap_or_else(|| panic!("missing sprite asset: {name}"))
+    pub fn directional_sprite(&self, id: DirectionalSpriteId, dir: Direction) -> &SpriteAsset {
+        let set = self
+            .directional_sprites
+            .get(&id)
+            .unwrap_or_else(|| panic!("missing directional sprite set: {id:?}"));
+        match dir {
+            Direction::Up => &set.up,
+            Direction::Down => &set.down,
+            Direction::Left => &set.left,
+            Direction::Right => &set.right,
+        }
     }
 }
 
-fn insert_sprite(
-    sprites: &mut HashMap<String, SpriteAsset>,
-    name: &str,
+#[derive(Clone, Copy)]
+struct DirectionalFrameMap {
+    up: u32,
+    down: u32,
+    left: u32,
+    right: u32,
+}
+
+fn sprite_from_sheet(
     texture: Texture2D,
-    source: Option<Rect>,
+    frame_size: Vec2,
+    frame_index: u32,
+    draw_size: Vec2,
+    anchor: Vec2,
+) -> SpriteAsset {
+    let columns = (texture.width() / frame_size.x).floor().max(1.0) as u32;
+    let frame_x = frame_index % columns;
+    let frame_y = frame_index / columns;
+    SpriteAsset {
+        texture,
+        source: Some(Rect::new(
+            frame_x as f32 * frame_size.x,
+            frame_y as f32 * frame_size.y,
+            frame_size.x,
+            frame_size.y,
+        )),
+        draw_size,
+        anchor,
+    }
+}
+
+fn register_directional_sheet_sprite_set(
+    sprites: &mut HashMap<DirectionalSpriteId, DirectionalSpriteSet>,
+    id: DirectionalSpriteId,
+    texture: &Texture2D,
+    frame_size: Vec2,
+    frames: DirectionalFrameMap,
     draw_size: Vec2,
     anchor: Vec2,
 ) {
     sprites.insert(
-        name.to_owned(),
-        SpriteAsset {
-            texture,
-            source,
-            draw_size,
-            anchor,
+        id,
+        DirectionalSpriteSet {
+            up: sprite_from_sheet(texture.clone(), frame_size, frames.up, draw_size, anchor),
+            down: sprite_from_sheet(texture.clone(), frame_size, frames.down, draw_size, anchor),
+            left: sprite_from_sheet(texture.clone(), frame_size, frames.left, draw_size, anchor),
+            right: sprite_from_sheet(texture.clone(), frame_size, frames.right, draw_size, anchor),
         },
     );
-}
-
-fn register_sheet_sprites(
-    sprites: &mut HashMap<String, SpriteAsset>,
-    texture: &Texture2D,
-    frame_size: Vec2,
-    entries: &[(&str, u32, Vec2, Vec2)],
-) {
-    let columns = (texture.width() / frame_size.x).floor().max(1.0) as u32;
-
-    for (name, frame_index, draw_size, anchor) in entries {
-        let frame_x = frame_index % columns;
-        let frame_y = frame_index / columns;
-        insert_sprite(
-            sprites,
-            name,
-            texture.clone(),
-            Some(Rect::new(
-                frame_x as f32 * frame_size.x,
-                frame_y as f32 * frame_size.y,
-                frame_size.x,
-                frame_size.y,
-            )),
-            *draw_size,
-            *anchor,
-        );
-    }
 }

@@ -1,11 +1,13 @@
-use crate::assets::Assets;
+use crate::assets::{Assets, DirectionalSpriteId, SpriteAsset};
 use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
-use crate::entities::Direction;
+use crate::entities::EnemyKind;
 use crate::world::World;
 use macroquad::prelude::*;
 
 pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     draw_imported_map(assets, world, top_left);
+    draw_enemies(assets, world, top_left, alpha);
+    draw_bullets(world, top_left, alpha);
 
     let jeep_pos = world_to_screen(world.player.render_pos(alpha), top_left);
     let jeep_size = vec2(world.map.tile_size, world.map.tile_size);
@@ -17,7 +19,42 @@ pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
         0.0,
         Color::new(0.0, 0.0, 0.0, 0.18),
     );
-    draw_sprite_centered_sized(assets, jeep_sprite_name(world.player.dir), jeep_pos, jeep_size, WHITE);
+    draw_sprite_centered_sized(
+        assets.directional_sprite(DirectionalSpriteId::Jeep, world.player.dir),
+        jeep_pos,
+        jeep_size,
+        WHITE,
+    );
+}
+
+fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
+    for enemy in &world.enemies {
+        let pos = world_to_screen(enemy.render_pos(alpha), top_left);
+        let size = vec2(world.map.tile_size, world.map.tile_size);
+        draw_ellipse(
+            pos.x,
+            pos.y + size.y * 0.24,
+            size.x * 0.2,
+            size.y * 0.07,
+            0.0,
+            Color::new(0.0, 0.0, 0.0, 0.14),
+        );
+        draw_sprite_centered_sized(
+            assets.directional_sprite(enemy_sprite_id(enemy.kind), enemy.dir),
+            pos,
+            size,
+            WHITE,
+        );
+    }
+}
+
+fn draw_bullets(world: &World, top_left: Vec2, alpha: f32) {
+    for bullet in &world.bullets {
+        let pos = world_to_screen(bullet.render_pos(alpha), top_left);
+        let visual_radius = bullet.radius * 0.5;
+        draw_circle(pos.x, pos.y, visual_radius + 1.4, BLACK);
+        draw_circle(pos.x, pos.y, visual_radius + 0.4, WHITE);
+    }
 }
 
 fn draw_imported_map(assets: &Assets, world: &World, top_left: Vec2) {
@@ -57,8 +94,7 @@ fn draw_imported_map(assets: &Assets, world: &World, top_left: Vec2) {
     }
 }
 
-fn draw_sprite_top_left(assets: &Assets, sprite_name: &str, top_left: Vec2, tint: Color) {
-    let sprite = assets.sprite(sprite_name);
+fn draw_sprite_top_left(sprite: &SpriteAsset, top_left: Vec2, tint: Color) {
     draw_texture_ex(
         &sprite.texture,
         top_left.x,
@@ -72,20 +108,17 @@ fn draw_sprite_top_left(assets: &Assets, sprite_name: &str, top_left: Vec2, tint
     );
 }
 
-fn draw_sprite_centered(assets: &Assets, sprite_name: &str, center: Vec2, tint: Color) {
-    let sprite = assets.sprite(sprite_name);
+fn draw_sprite_centered(sprite: &SpriteAsset, center: Vec2, tint: Color) {
     let top_left = center - sprite.anchor;
-    draw_sprite_top_left(assets, sprite_name, top_left, tint);
+    draw_sprite_top_left(sprite, top_left, tint);
 }
 
 fn draw_sprite_centered_sized(
-    assets: &Assets,
-    sprite_name: &str,
+    sprite: &SpriteAsset,
     center: Vec2,
     size: Vec2,
     tint: Color,
 ) {
-    let sprite = assets.sprite(sprite_name);
     let scale = vec2(size.x / sprite.draw_size.x, size.y / sprite.draw_size.y);
     let scaled_anchor = vec2(sprite.anchor.x * scale.x, sprite.anchor.y * scale.y);
     let top_left = center - scaled_anchor;
@@ -119,11 +152,8 @@ fn visible_tile_bounds(world: &World, top_left: Vec2, padding_tiles: i32) -> (i3
     (min_x, max_x, min_y, max_y)
 }
 
-fn jeep_sprite_name(dir: Direction) -> &'static str {
-    match dir {
-        Direction::Up => "jeep_up",
-        Direction::Down => "jeep_down",
-        Direction::Left => "jeep_left",
-        Direction::Right => "jeep_right",
+fn enemy_sprite_id(kind: EnemyKind) -> DirectionalSpriteId {
+    match kind {
+        EnemyKind::Soldier => DirectionalSpriteId::Soldier,
     }
 }

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct PlayerCommand {
     pub move_dir: Option<Direction>,
+    pub fire: bool,
 }
 
 pub fn gather_player_command() -> PlayerCommand {
@@ -22,5 +23,6 @@ pub fn gather_player_command() -> PlayerCommand {
 
     PlayerCommand {
         move_dir,
+        fire: is_key_down(KeyCode::Space),
     }
 }

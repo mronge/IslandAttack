@@ -19,6 +19,20 @@ impl Direction {
             Self::Right => vec2(1.0, 0.0),
         }
     }
+
+    pub fn from_vec(delta: Vec2) -> Self {
+        if delta.x.abs() > delta.y.abs() {
+            if delta.x >= 0.0 {
+                Self::Right
+            } else {
+                Self::Left
+            }
+        } else if delta.y >= 0.0 {
+            Self::Down
+        } else {
+            Self::Up
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -28,6 +42,7 @@ pub struct Jeep {
     pub vel: Vec2,
     pub dir: Direction,
     pub speed: f32,
+    pub fire_cooldown: f32,
 }
 
 impl Jeep {
@@ -38,6 +53,7 @@ impl Jeep {
             vel: Vec2::ZERO,
             dir: Direction::Up,
             speed: JEEP_SPEED,
+            fire_cooldown: 0.0,
         }
     }
 

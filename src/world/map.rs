@@ -227,6 +227,52 @@ impl ImportedMap {
             .map(|tile| self.tile_center(tile))
             .unwrap_or_else(|| self.dimensions_px() * 0.5)
     }
+
+    pub fn enemy_spawn_points(
+        &self,
+        size: Vec2,
+        count: usize,
+        avoid_center: Vec2,
+        min_distance: f32,
+    ) -> Vec<Vec2> {
+        let mut candidates = Vec::new();
+
+        for y in 0..self.height as i32 {
+            for x in 0..self.width as i32 {
+                let tile = ivec2(x, y);
+                let Some(idx) = self.tile_index(tile) else {
+                    continue;
+                };
+                if !self.preferred_spawn_tiles[idx] {
+                    continue;
+                }
+
+                let center = self.tile_center(tile);
+                if center.distance(avoid_center) < min_distance {
+                    continue;
+                }
+
+                let rect = Rect::new(
+                    center.x - size.x * 0.5,
+                    center.y - size.y * 0.5,
+                    size.x,
+                    size.y,
+                );
+                if self.collides_rect(rect) {
+                    continue;
+                }
+
+                candidates.push(center);
+            }
+        }
+
+        candidates.sort_by(|a, b| {
+            b.distance_squared(avoid_center)
+                .total_cmp(&a.distance_squared(avoid_center))
+        });
+        candidates.truncate(count);
+        candidates
+    }
 }
 
 fn tile_index(width: usize, height: usize, tile: IVec2) -> Option<usize> {
