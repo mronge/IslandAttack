@@ -4,10 +4,12 @@ use std::collections::HashMap;
 use std::fs;
 
 const MANIFEST_PATH: &str = "output/imagegen/final/manifest.json";
+const JEEP_SPRITESHEET_PATH: &str = "output/imagegen/raw/jeep.png";
 
 #[derive(Clone)]
 pub struct Assets {
     atlas: Texture2D,
+    jeep_sheet: Texture2D,
     sprites: HashMap<String, SpriteAsset>,
 }
 
@@ -41,6 +43,10 @@ impl Assets {
                 )
             });
         atlas.set_filter(FilterMode::Nearest);
+        let jeep_sheet = load_texture(JEEP_SPRITESHEET_PATH)
+            .await
+            .unwrap_or_else(|_| panic!("failed to load jeep spritesheet: {JEEP_SPRITESHEET_PATH}"));
+        jeep_sheet.set_filter(FilterMode::Nearest);
 
         let mut sprites = HashMap::new();
         for (name, entry) in manifest {
@@ -58,11 +64,19 @@ impl Assets {
             );
         }
 
-        Self { atlas, sprites }
+        Self {
+            atlas,
+            jeep_sheet,
+            sprites,
+        }
     }
 
     pub fn atlas(&self) -> &Texture2D {
         &self.atlas
+    }
+
+    pub fn jeep_sheet(&self) -> &Texture2D {
+        &self.jeep_sheet
     }
 
     pub fn sprite(&self, name: &str) -> &SpriteAsset {

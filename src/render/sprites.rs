@@ -17,7 +17,7 @@ pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
         0.0,
         Color::new(0.0, 0.0, 0.0, 0.18),
     );
-    draw_sprite_centered_sized(assets, jeep_sprite_name(world.player.dir), jeep_pos, jeep_size, WHITE);
+    draw_jeep_centered_sized(assets, world.player.dir, jeep_pos, jeep_size, WHITE);
 }
 
 fn draw_imported_map(assets: &Assets, world: &World, top_left: Vec2) {
@@ -98,6 +98,39 @@ fn draw_sprite_centered_sized(
     );
 }
 
+fn draw_jeep_centered_sized(
+    assets: &Assets,
+    dir: Direction,
+    center: Vec2,
+    size: Vec2,
+    tint: Color,
+) {
+    let frame_size = 64.0;
+    let frame_index = match dir {
+        Direction::Up => 5.0,
+        Direction::Down => 1.0,
+        Direction::Left => 7.0,
+        Direction::Right => 3.0,
+    };
+    let top_left = center - size * 0.5;
+    draw_texture_ex(
+        assets.jeep_sheet(),
+        top_left.x,
+        top_left.y,
+        tint,
+        DrawTextureParams {
+            dest_size: Some(size),
+            source: Some(Rect::new(
+                frame_index * frame_size,
+                0.0,
+                frame_size,
+                frame_size,
+            )),
+            ..Default::default()
+        },
+    );
+}
+
 fn world_to_screen(world_pos: Vec2, top_left: Vec2) -> Vec2 {
     vec2(world_pos.x - top_left.x, world_pos.y - top_left.y)
 }
@@ -113,13 +146,4 @@ fn visible_tile_bounds(world: &World, top_left: Vec2, padding_tiles: i32) -> (i3
     let max_y = (((top_left.y + VIEW_HEIGHT) / tile_size).ceil() as i32 + padding_tiles + 1)
         .clamp(0, world.map.height as i32);
     (min_x, max_x, min_y, max_y)
-}
-
-fn jeep_sprite_name(dir: Direction) -> &'static str {
-    match dir {
-        Direction::Up => "jeep_up",
-        Direction::Down => "jeep_down",
-        Direction::Left => "jeep_left",
-        Direction::Right => "jeep_right",
-    }
 }
