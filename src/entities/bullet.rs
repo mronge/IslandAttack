@@ -1,5 +1,11 @@
 use macroquad::prelude::*;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BulletOwner {
+    Player,
+    Enemy,
+}
+
 #[derive(Clone, Debug)]
 pub struct Bullet {
     pub prev_pos: Vec2,
@@ -7,16 +13,18 @@ pub struct Bullet {
     pub vel: Vec2,
     pub ttl: f32,
     pub radius: f32,
+    pub owner: BulletOwner,
 }
 
 impl Bullet {
-    pub fn new(pos: Vec2, vel: Vec2) -> Self {
+    pub fn new(pos: Vec2, vel: Vec2, owner: BulletOwner) -> Self {
         Self {
             prev_pos: pos,
             pos,
             vel,
             ttl: 1.5,
             radius: 2.5,
+            owner,
         }
     }
 

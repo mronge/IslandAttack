@@ -1,5 +1,8 @@
-use crate::constants::{BULLET_SPEED, JEEP_ACCEL, JEEP_BRAKE, PLAYER_FIRE_COOLDOWN};
-use crate::entities::{Bullet, Direction};
+use crate::constants::{
+    BULLET_SPEED, ENEMY_BULLET_SPEED, ENEMY_FIRE_COOLDOWN, ENEMY_FIRE_RANGE, JEEP_ACCEL,
+    JEEP_BRAKE, PLAYER_FIRE_COOLDOWN,
+};
+use crate::entities::{Bullet, BulletOwner, Direction};
 use crate::input::PlayerCommand;
 use crate::world::{World, rect_from_center};
 use macroquad::prelude::*;
@@ -55,14 +58,18 @@ impl World {
 
         if command.fire && self.player.fire_cooldown <= 0.0 {
             let muzzle = self.player.pos + self.player.dir.as_vec() * 14.0;
-            self.bullets
-                .push(Bullet::new(muzzle, self.player.dir.as_vec() * BULLET_SPEED));
+            self.bullets.push(Bullet::new(
+                muzzle,
+                self.player.dir.as_vec() * BULLET_SPEED,
+                BulletOwner::Player,
+            ));
             self.player.fire_cooldown = PLAYER_FIRE_COOLDOWN;
         }
     }
 
     fn update_bullets(&mut self, dt: f32) {
         let mut survivors = Vec::with_capacity(self.bullets.len());
+        let mut player_hit = false;
 
         for mut bullet in std::mem::take(&mut self.bullets) {
             bullet.prev_pos = bullet.pos;
@@ -78,11 +85,22 @@ impl World {
             let mut hit = self.map.collides_rect(bullet_rect);
 
             if !hit {
-                for enemy in &mut self.enemies {
-                    if enemy.hp > 0 && enemy.pos.distance(bullet.pos) <= bullet.radius + 9.0 {
-                        enemy.hp -= 1;
-                        hit = true;
-                        break;
+                match bullet.owner {
+                    BulletOwner::Player => {
+                        for enemy in &mut self.enemies {
+                            if enemy.hp > 0 && enemy.pos.distance(bullet.pos) <= bullet.radius + 9.0
+                            {
+                                enemy.hp -= 1;
+                                hit = true;
+                                break;
+                            }
+                        }
+                    }
+                    BulletOwner::Enemy => {
+                        if self.player.pos.distance(bullet.pos) <= bullet.radius + 11.0 {
+                            player_hit = true;
+                            hit = true;
+                        }
                     }
                 }
             }
@@ -92,21 +110,32 @@ impl World {
             }
         }
 
+        if player_hit {
+            survivors.clear();
+            self.reset_player();
+        }
+
         self.bullets = survivors;
     }
 
     fn update_enemies(&mut self, dt: f32) {
+        let mut spawned_bullets = Vec::new();
+
         for enemy in &mut self.enemies {
             if enemy.hp <= 0 {
                 continue;
             }
 
+            enemy.fire_cooldown = (enemy.fire_cooldown - dt).max(0.0);
+
             let to_player = self.player.pos - enemy.pos;
-            if to_player.length_squared() <= 1.0 {
+            let distance_sq = to_player.length_squared();
+            if distance_sq <= 1.0 {
                 continue;
             }
 
-            let step_dir = to_player.normalize();
+            let distance = distance_sq.sqrt();
+            let step_dir = to_player / distance;
             enemy.dir = Direction::from_vec(step_dir);
             let attempt_x = enemy.pos + vec2(step_dir.x * enemy.speed * dt, 0.0);
             let rect_x = rect_from_center(attempt_x, enemy.size());
@@ -119,7 +148,22 @@ impl World {
             if !self.map.collides_rect(rect_y) {
                 enemy.pos.y = attempt_y.y;
             }
+
+            if distance <= ENEMY_FIRE_RANGE
+                && enemy.fire_cooldown <= 0.0
+                && self.map.has_line_of_sight(enemy.pos, self.player.pos)
+            {
+                let muzzle = enemy.pos + step_dir * 12.0;
+                spawned_bullets.push(Bullet::new(
+                    muzzle,
+                    step_dir * ENEMY_BULLET_SPEED,
+                    BulletOwner::Enemy,
+                ));
+                enemy.fire_cooldown = ENEMY_FIRE_COOLDOWN;
+            }
         }
+
+        self.bullets.extend(spawned_bullets);
     }
 
     fn cleanup(&mut self) {

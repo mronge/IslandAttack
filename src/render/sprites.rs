@@ -1,6 +1,6 @@
 use crate::assets::{Assets, DirectionalSpriteId, SpriteAsset};
 use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
-use crate::entities::EnemyKind;
+use crate::entities::{BulletOwner, EnemyKind};
 use crate::world::World;
 use macroquad::prelude::*;
 
@@ -52,8 +52,16 @@ fn draw_bullets(world: &World, top_left: Vec2, alpha: f32) {
     for bullet in &world.bullets {
         let pos = world_to_screen(bullet.render_pos(alpha), top_left);
         let visual_radius = bullet.radius * 0.5;
-        draw_circle(pos.x, pos.y, visual_radius + 1.4, BLACK);
-        draw_circle(pos.x, pos.y, visual_radius + 0.4, WHITE);
+        let fill = match bullet.owner {
+            BulletOwner::Player => WHITE,
+            BulletOwner::Enemy => color_u8!(255, 120, 90, 255),
+        };
+        let outline = match bullet.owner {
+            BulletOwner::Player => BLACK,
+            BulletOwner::Enemy => color_u8!(90, 20, 10, 255),
+        };
+        draw_circle(pos.x, pos.y, visual_radius + 1.4, outline);
+        draw_circle(pos.x, pos.y, visual_radius + 0.4, fill);
     }
 }
 
@@ -64,7 +72,10 @@ fn draw_imported_map(assets: &Assets, world: &World, top_left: Vec2) {
 
     for layer in world.map.layers.iter().rev() {
         for tile in &layer.tiles {
-            if tile.pos.x < min_x || tile.pos.x >= max_x || tile.pos.y < min_y || tile.pos.y >= max_y
+            if tile.pos.x < min_x
+                || tile.pos.x >= max_x
+                || tile.pos.y < min_y
+                || tile.pos.y >= max_y
             {
                 continue;
             }
@@ -113,12 +124,7 @@ fn draw_sprite_centered(sprite: &SpriteAsset, center: Vec2, tint: Color) {
     draw_sprite_top_left(sprite, top_left, tint);
 }
 
-fn draw_sprite_centered_sized(
-    sprite: &SpriteAsset,
-    center: Vec2,
-    size: Vec2,
-    tint: Color,
-) {
+fn draw_sprite_centered_sized(sprite: &SpriteAsset, center: Vec2, size: Vec2, tint: Color) {
     let scale = vec2(size.x / sprite.draw_size.x, size.y / sprite.draw_size.y);
     let scaled_anchor = vec2(sprite.anchor.x * scale.x, sprite.anchor.y * scale.y);
     let top_left = center - scaled_anchor;

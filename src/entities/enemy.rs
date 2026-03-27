@@ -1,4 +1,4 @@
-use crate::constants::ENEMY_SPEED;
+use crate::constants::{ENEMY_FIRE_COOLDOWN, ENEMY_SPEED};
 use crate::entities::Direction;
 use macroquad::prelude::*;
 
@@ -15,6 +15,7 @@ pub struct Enemy {
     pub kind: EnemyKind,
     pub hp: i32,
     pub speed: f32,
+    pub fire_cooldown: f32,
 }
 
 impl Enemy {
@@ -26,6 +27,7 @@ impl Enemy {
             kind: EnemyKind::Soldier,
             hp: 2,
             speed: ENEMY_SPEED,
+            fire_cooldown: ENEMY_FIRE_COOLDOWN * 0.5,
         }
     }
 

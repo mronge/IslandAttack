@@ -58,8 +58,8 @@ impl ImportedMap {
     pub fn load() -> Self {
         let raw = fs::read_to_string(MAP_PATH)
             .unwrap_or_else(|_| panic!("failed to read imported map: {MAP_PATH}"));
-        let raw_map: RawMap =
-            serde_json::from_str(&raw).unwrap_or_else(|_| panic!("failed to parse map: {MAP_PATH}"));
+        let raw_map: RawMap = serde_json::from_str(&raw)
+            .unwrap_or_else(|_| panic!("failed to parse map: {MAP_PATH}"));
 
         let layers: Vec<MapLayer> = raw_map
             .layers
@@ -102,7 +102,8 @@ impl ImportedMap {
                     continue;
                 }
                 for tile in &layer.tiles {
-                    let Some(idx) = tile_index(raw_map.map_width, raw_map.map_height, tile.pos) else {
+                    let Some(idx) = tile_index(raw_map.map_width, raw_map.map_height, tile.pos)
+                    else {
                         continue;
                     };
                     preferred_spawn_tiles[idx] = true;
@@ -167,6 +168,40 @@ impl ImportedMap {
         }
 
         false
+    }
+
+    pub fn collides_point(&self, point: Vec2) -> bool {
+        let pixel_width = self.width * self.tile_size as usize;
+        let pixel_height = self.height * self.tile_size as usize;
+        let x = point.x.floor() as i32;
+        let y = point.y.floor() as i32;
+
+        if x < 0 || y < 0 || x >= pixel_width as i32 || y >= pixel_height as i32 {
+            return true;
+        }
+
+        self.collision_pixels[y as usize * pixel_width + x as usize]
+    }
+
+    pub fn has_line_of_sight(&self, from: Vec2, to: Vec2) -> bool {
+        let delta = to - from;
+        let distance = delta.length();
+        if distance <= 1.0 {
+            return true;
+        }
+
+        let step = delta / distance;
+        let step_size = 4.0;
+        let steps = (distance / step_size).ceil() as i32;
+
+        for i in 1..steps {
+            let sample = from + step * (i as f32 * step_size);
+            if self.collides_point(sample) {
+                return false;
+            }
+        }
+
+        !self.collides_point(to)
     }
 
     pub fn is_solid(&self, tile: IVec2) -> bool {
