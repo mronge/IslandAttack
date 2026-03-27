@@ -69,7 +69,7 @@ impl World {
 
     fn update_bullets(&mut self, dt: f32) {
         let mut survivors = Vec::with_capacity(self.bullets.len());
-        let mut player_hit = false;
+        let mut player_hits = 0;
 
         for mut bullet in std::mem::take(&mut self.bullets) {
             bullet.prev_pos = bullet.pos;
@@ -98,7 +98,7 @@ impl World {
                     }
                     BulletOwner::Enemy => {
                         if self.player.pos.distance(bullet.pos) <= bullet.radius + 11.0 {
-                            player_hit = true;
+                            player_hits += 1;
                             hit = true;
                         }
                     }
@@ -110,9 +110,12 @@ impl World {
             }
         }
 
-        if player_hit {
-            survivors.clear();
-            self.reset_player();
+        if player_hits > 0 {
+            self.player.hp = (self.player.hp - player_hits).max(0);
+            if self.player.hp <= 0 {
+                survivors.clear();
+                self.reset_player();
+            }
         }
 
         self.bullets = survivors;

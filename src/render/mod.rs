@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod hud;
 pub mod sprites;
 
 use crate::assets::Assets;
@@ -55,12 +56,6 @@ impl Renderer {
             },
         );
 
-        draw_text(
-            "WASD / ARROWS MOVE   R RESET",
-            origin.x + 18.0,
-            origin.y + dest.y - 18.0,
-            24.0,
-            WHITE,
-        );
+        hud::draw(world, origin, dest, scale);
     }
 }

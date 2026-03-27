@@ -1,4 +1,4 @@
-use crate::constants::JEEP_SPEED;
+use crate::constants::{JEEP_SPEED, PLAYER_MAX_HP};
 use macroquad::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -43,6 +43,8 @@ pub struct Jeep {
     pub dir: Direction,
     pub speed: f32,
     pub fire_cooldown: f32,
+    pub hp: i32,
+    pub max_hp: i32,
 }
 
 impl Jeep {
@@ -54,6 +56,8 @@ impl Jeep {
             dir: Direction::Up,
             speed: JEEP_SPEED,
             fire_cooldown: 0.0,
+            hp: PLAYER_MAX_HP,
+            max_hp: PLAYER_MAX_HP,
         }
     }
 

@@ -9,6 +9,7 @@ pub const SOLDIER_SPRITESHEET_PATH: &str = "sprites/soldier.png";
 pub const JEEP_SPEED: f32 = 210.0;
 pub const JEEP_ACCEL: f32 = 800.0;
 pub const JEEP_BRAKE: f32 = 1050.0;
+pub const PLAYER_MAX_HP: i32 = 5;
 pub const BULLET_SPEED: f32 = 420.0;
 pub const ENEMY_SPEED: f32 = 40.0;
 pub const PLAYER_FIRE_COOLDOWN: f32 = 0.14;

@@ -1,101 +1,109 @@
-use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
-use crate::game::SceneMode;
-use crate::world::{TileKind, World};
+use crate::world::World;
 use macroquad::prelude::*;
 
-pub fn draw(
-    world: &World,
-    mode: SceneMode,
-    brush: TileKind,
-    status_text: &str,
-    replay_mode: &str,
-    replay_detail: &str,
-) {
-    let mode_label = match mode {
-        SceneMode::Play => "PLAY",
-        SceneMode::Editor => "EDITOR",
-    };
-
-    draw_rectangle(0.0, 0.0, VIEW_WIDTH, 92.0, Color::new(0.0, 0.0, 0.0, 0.72));
-    draw_rectangle(
-        0.0,
-        VIEW_HEIGHT - 44.0,
-        VIEW_WIDTH,
-        44.0,
-        Color::new(0.0, 0.0, 0.0, 0.72),
-    );
+pub fn draw(world: &World, origin: Vec2, dest: Vec2, scale: f32) {
+    draw_top_bar(world, origin, scale);
 
     draw_text(
-        &format!(
-            "{}  LIVES:{}  HP:{}  RESCUED:{}/{}  RIDERS:{}",
-            mode_label,
-            world.mission.lives,
-            world.player.hp,
-            world.mission.rescued_total,
-            world.mission.total_hostages,
-            world.rider_count()
-        ),
-        24.0,
-        38.0,
-        38.0,
+        "WASD / ARROWS MOVE   R RESET",
+        origin.x + 18.0 * scale,
+        origin.y + dest.y - 18.0 * scale,
+        24.0 * scale,
         WHITE,
     );
-
-    draw_text(status_text, 24.0, 72.0, 28.0, color_u8!(220, 220, 180, 255));
-    draw_text(
-        &format!("INPUT:{}  {}", replay_mode, replay_detail),
-        VIEW_WIDTH - 760.0,
-        38.0,
-        30.0,
-        color_u8!(200, 240, 255, 255),
-    );
-
-    match mode {
-        SceneMode::Play => {
-            draw_text(
-                "WASD/ARROWS MOVE  SPACE FIRE  TAB EDITOR  R RESET  F6 REC  F7 PLAY  F8 STOP  F10 DEMO",
-                24.0,
-                VIEW_HEIGHT - 14.0,
-                22.0,
-                WHITE,
-            );
-        }
-        SceneMode::Editor => {
-            draw_text(
-                &format!(
-                    "ARROWS PAN  LMB PAINT  RMB GRASS  1-8 BRUSH  F5 SAVE  F9 LOAD  ENTER PLAYTEST  BRUSH:{:?}",
-                    brush
-                ),
-                24.0,
-                VIEW_HEIGHT - 14.0,
-                22.0,
-                WHITE,
-            );
-        }
-    }
-
-    if world.mission.victory {
-        draw_centered_message("MISSION CLEAR", color_u8!(220, 255, 200, 255));
-    } else if world.mission.game_over {
-        draw_centered_message("GAME OVER", color_u8!(255, 170, 170, 255));
-    }
 }
 
-fn draw_centered_message(text: &str, color: Color) {
-    let size = 64.0;
-    let measured = measure_text(text, None, size as u16, 1.0);
+fn draw_top_bar(world: &World, origin: Vec2, scale: f32) {
+    let panel_pos = origin + vec2(10.0, 10.0) * scale;
+    let panel_size = vec2(144.0, 24.0) * scale;
     draw_rectangle(
-        VIEW_WIDTH * 0.5 - measured.width * 0.5 - 24.0,
-        VIEW_HEIGHT * 0.5 - 56.0,
-        measured.width + 48.0,
-        82.0,
-        Color::new(0.0, 0.0, 0.0, 0.7),
+        panel_pos.x,
+        panel_pos.y,
+        panel_size.x,
+        panel_size.y,
+        Color::new(0.02, 0.03, 0.05, 0.82),
     );
+    draw_rectangle_lines(
+        panel_pos.x,
+        panel_pos.y,
+        panel_size.x,
+        panel_size.y,
+        2.0 * scale,
+        Color::new(1.0, 1.0, 1.0, 0.08),
+    );
+
+    let bar_pos = panel_pos + vec2(29.0, 6.0) * scale;
+    let bar_size = vec2(103.0, 12.0) * scale;
+    let heart_center = vec2(
+        panel_pos.x + 16.0 * scale,
+        bar_pos.y + bar_size.y * 0.5 - 0.5 * scale,
+    );
+    draw_heart(heart_center, 5.5 * scale, color_u8!(220, 62, 74, 255));
+
+    draw_rectangle(
+        bar_pos.x,
+        bar_pos.y,
+        bar_size.x,
+        bar_size.y,
+        color_u8!(48, 16, 20, 255),
+    );
+
+    let ratio = if world.player.max_hp > 0 {
+        world.player.hp as f32 / world.player.max_hp as f32
+    } else {
+        0.0
+    }
+    .clamp(0.0, 1.0);
+
+    if ratio > 0.0 {
+        draw_rectangle(
+            bar_pos.x + 2.0 * scale,
+            bar_pos.y + 2.0 * scale,
+            (bar_size.x - 4.0 * scale) * ratio,
+            bar_size.y - 4.0 * scale,
+            color_u8!(232, 84, 96, 255),
+        );
+    }
+
+    draw_rectangle_lines(
+        bar_pos.x,
+        bar_pos.y,
+        bar_size.x,
+        bar_size.y,
+        2.0 * scale,
+        color_u8!(255, 220, 220, 255),
+    );
+
+    let label = format!("{}/{}", world.player.hp, world.player.max_hp);
+    let font_size = (10.0 * scale).max(1.0);
+    let measured = measure_text(&label, None, font_size as u16, 1.0);
     draw_text(
-        text,
-        VIEW_WIDTH * 0.5 - measured.width * 0.5,
-        VIEW_HEIGHT * 0.5,
-        size,
+        &label,
+        bar_pos.x + bar_size.x * 0.5 - measured.width * 0.5,
+        bar_pos.y + bar_size.y * 0.5 - measured.height * 0.5 + measured.offset_y,
+        font_size,
+        WHITE,
+    );
+}
+
+fn draw_heart(center: Vec2, size: f32, color: Color) {
+    let lobe_radius = size * 0.55;
+    draw_circle(
+        center.x - size * 0.42,
+        center.y - size * 0.18,
+        lobe_radius,
+        color,
+    );
+    draw_circle(
+        center.x + size * 0.42,
+        center.y - size * 0.18,
+        lobe_radius,
+        color,
+    );
+    draw_triangle(
+        vec2(center.x - size * 1.02, center.y + size * 0.04),
+        vec2(center.x + size * 1.02, center.y + size * 0.04),
+        vec2(center.x, center.y + size * 1.34),
         color,
     );
 }
