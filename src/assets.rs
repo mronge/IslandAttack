@@ -82,9 +82,9 @@ impl Assets {
             vec2(32.0, 32.0),
             DirectionalFrameMap {
                 up: 4,
-                right: 6,
+                right: 7,
                 down: 0,
-                left: 2,
+                left: 1,
             },
             vec2(32.0, 32.0),
             vec2(16.0, 16.0),
