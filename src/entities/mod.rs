@@ -4,5 +4,5 @@ mod jeep;
 
 pub use bullet::Bullet;
 pub use bullet::BulletOwner;
-pub use enemy::{Enemy, EnemyKind};
+pub use enemy::{Enemy, EnemyAnimState, EnemyKind};
 pub use jeep::{Direction, Jeep};

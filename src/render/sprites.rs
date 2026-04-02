@@ -89,7 +89,12 @@ fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
             Color::new(0.0, 0.0, 0.0, 0.14),
         );
         draw_sprite_centered_sized(
-            assets.directional_sprite(enemy_sprite_id(enemy.kind), enemy.dir),
+            assets.animated_directional_sprite(
+                enemy_sprite_id(enemy.kind),
+                enemy.dir,
+                enemy.animation_state,
+                enemy.walk_frame_index(),
+            ),
             pos,
             size,
             WHITE,

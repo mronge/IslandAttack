@@ -1,8 +1,8 @@
 use crate::constants::{
-    BULLET_SPEED, ENEMY_BULLET_SPEED, ENEMY_FIRE_COOLDOWN, ENEMY_FIRE_RANGE, JEEP_ACCEL,
-    JEEP_BRAKE, PLAYER_FIRE_COOLDOWN,
+    BULLET_SPEED, ENEMY_BULLET_SPEED, ENEMY_FIRE_COOLDOWN, ENEMY_FIRE_RANGE, ENEMY_SHOOT_DURATION,
+    JEEP_ACCEL, JEEP_BRAKE, PLAYER_FIRE_COOLDOWN,
 };
-use crate::entities::{Bullet, BulletOwner, Direction};
+use crate::entities::{Bullet, BulletOwner, Direction, EnemyAnimState};
 use crate::input::PlayerCommand;
 use crate::world::{World, rect_from_center};
 use macroquad::prelude::*;
@@ -132,16 +132,44 @@ impl World {
             }
 
             enemy.fire_cooldown = (enemy.fire_cooldown - dt).max(0.0);
+            enemy.shoot_timer = (enemy.shoot_timer - dt).max(0.0);
 
             let to_player = self.player.pos - enemy.pos;
             let distance_sq = to_player.length_squared();
             if distance_sq <= 1.0 {
+                enemy.set_animation_state(EnemyAnimState::Idle);
                 continue;
             }
 
             let distance = distance_sq.sqrt();
             let step_dir = to_player / distance;
             enemy.dir = Direction::from_vec(step_dir);
+            let can_shoot_from_here = distance <= ENEMY_FIRE_RANGE
+                && self.map.has_line_of_sight(enemy.pos, self.player.pos);
+
+            if enemy.shoot_timer > 0.0 {
+                enemy.set_animation_state(EnemyAnimState::Shoot);
+                continue;
+            }
+
+            if can_shoot_from_here {
+                enemy.set_animation_state(EnemyAnimState::Idle);
+                if enemy.fire_cooldown <= 0.0 {
+                    enemy.set_animation_state(EnemyAnimState::Shoot);
+                    enemy.shoot_timer = ENEMY_SHOOT_DURATION;
+
+                    let muzzle = enemy.pos + step_dir * 12.0;
+                    spawned_bullets.push(Bullet::new(
+                        muzzle,
+                        step_dir * ENEMY_BULLET_SPEED,
+                        BulletOwner::Enemy,
+                    ));
+                    enemy.fire_cooldown = ENEMY_FIRE_COOLDOWN;
+                }
+                continue;
+            }
+
+            let start_pos = enemy.pos;
             let attempt_x = enemy.pos + vec2(step_dir.x * enemy.speed * dt, 0.0);
             let rect_x = rect_from_center(attempt_x, enemy.size());
             if !self.map.collides_rect(rect_x) {
@@ -154,17 +182,11 @@ impl World {
                 enemy.pos.y = attempt_y.y;
             }
 
-            if distance <= ENEMY_FIRE_RANGE
-                && enemy.fire_cooldown <= 0.0
-                && self.map.has_line_of_sight(enemy.pos, self.player.pos)
-            {
-                let muzzle = enemy.pos + step_dir * 12.0;
-                spawned_bullets.push(Bullet::new(
-                    muzzle,
-                    step_dir * ENEMY_BULLET_SPEED,
-                    BulletOwner::Enemy,
-                ));
-                enemy.fire_cooldown = ENEMY_FIRE_COOLDOWN;
+            if enemy.pos.distance_squared(start_pos) > 0.01 {
+                enemy.set_animation_state(EnemyAnimState::Walk);
+                enemy.tick_animation(dt);
+            } else {
+                enemy.set_animation_state(EnemyAnimState::Idle);
             }
         }
 

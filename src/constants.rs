@@ -18,3 +18,5 @@ pub const PLAYER_FIRE_COOLDOWN: f32 = 0.14;
 pub const ENEMY_BULLET_SPEED: f32 = 280.0;
 pub const ENEMY_FIRE_COOLDOWN: f32 = 0.9;
 pub const ENEMY_FIRE_RANGE: f32 = 120.0;
+pub const ENEMY_WALK_FRAME_TIME: f32 = 0.18;
+pub const ENEMY_SHOOT_DURATION: f32 = 0.16;

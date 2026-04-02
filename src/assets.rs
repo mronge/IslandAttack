@@ -1,4 +1,4 @@
-use crate::entities::Direction;
+use crate::entities::{Direction, EnemyAnimState};
 use macroquad::prelude::*;
 use std::collections::HashMap;
 
@@ -6,6 +6,7 @@ use std::collections::HashMap;
 pub struct Assets {
     atlas: Texture2D,
     directional_sprites: HashMap<DirectionalSpriteId, DirectionalSpriteSet>,
+    animated_directional_sprites: HashMap<DirectionalSpriteId, DirectionalAnimatedSpriteSet>,
 }
 
 #[derive(Clone)]
@@ -28,6 +29,21 @@ struct DirectionalSpriteSet {
     down: SpriteAsset,
     left: SpriteAsset,
     right: SpriteAsset,
+}
+
+#[derive(Clone)]
+struct AnimatedSpriteClip {
+    idle: SpriteAsset,
+    walk: Vec<SpriteAsset>,
+    shoot: SpriteAsset,
+}
+
+#[derive(Clone)]
+struct DirectionalAnimatedSpriteSet {
+    up: AnimatedSpriteClip,
+    down: AnimatedSpriteClip,
+    left: AnimatedSpriteClip,
+    right: AnimatedSpriteClip,
 }
 
 impl Assets {
@@ -61,6 +77,7 @@ impl Assets {
         soldier_sheet.set_filter(FilterMode::Nearest);
 
         let mut directional_sprites = HashMap::new();
+        let mut animated_directional_sprites = HashMap::new();
         register_directional_sheet_sprite_set(
             &mut directional_sprites,
             DirectionalSpriteId::Jeep,
@@ -75,16 +92,32 @@ impl Assets {
             vec2(64.0, 64.0),
             vec2(32.0, 32.0),
         );
-        register_directional_sheet_sprite_set(
-            &mut directional_sprites,
+        register_directional_animated_sheet_sprite_set(
+            &mut animated_directional_sprites,
             DirectionalSpriteId::Soldier,
             &soldier_sheet,
             vec2(32.0, 32.0),
-            DirectionalFrameMap {
-                up: 4,
-                right: 7,
-                down: 0,
-                left: 1,
+            DirectionalAnimationFrameMap {
+                up: AnimationFrameMap {
+                    idle: 12,
+                    shoot: 13,
+                    walk: &[14, 15],
+                },
+                down: AnimationFrameMap {
+                    idle: 0,
+                    shoot: 1,
+                    walk: &[2, 3],
+                },
+                left: AnimationFrameMap {
+                    idle: 4,
+                    shoot: 5,
+                    walk: &[6, 7],
+                },
+                right: AnimationFrameMap {
+                    idle: 8,
+                    shoot: 9,
+                    walk: &[10, 11],
+                },
             },
             vec2(32.0, 32.0),
             vec2(16.0, 16.0),
@@ -93,6 +126,7 @@ impl Assets {
         Self {
             atlas,
             directional_sprites,
+            animated_directional_sprites,
         }
     }
 
@@ -112,6 +146,31 @@ impl Assets {
             Direction::Right => &set.right,
         }
     }
+
+    pub fn animated_directional_sprite(
+        &self,
+        id: DirectionalSpriteId,
+        dir: Direction,
+        state: EnemyAnimState,
+        frame_index: usize,
+    ) -> &SpriteAsset {
+        let set = self
+            .animated_directional_sprites
+            .get(&id)
+            .unwrap_or_else(|| panic!("missing animated directional sprite set: {id:?}"));
+        let clip = match dir {
+            Direction::Up => &set.up,
+            Direction::Down => &set.down,
+            Direction::Left => &set.left,
+            Direction::Right => &set.right,
+        };
+
+        match state {
+            EnemyAnimState::Idle => &clip.idle,
+            EnemyAnimState::Shoot => &clip.shoot,
+            EnemyAnimState::Walk => &clip.walk[frame_index % clip.walk.len()],
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -120,6 +179,21 @@ struct DirectionalFrameMap {
     down: u32,
     left: u32,
     right: u32,
+}
+
+#[derive(Clone, Copy)]
+struct AnimationFrameMap {
+    idle: u32,
+    walk: &'static [u32],
+    shoot: u32,
+}
+
+#[derive(Clone, Copy)]
+struct DirectionalAnimationFrameMap {
+    up: AnimationFrameMap,
+    down: AnimationFrameMap,
+    left: AnimationFrameMap,
+    right: AnimationFrameMap,
 }
 
 fn sprite_from_sheet(
@@ -161,6 +235,62 @@ fn register_directional_sheet_sprite_set(
             down: sprite_from_sheet(texture.clone(), frame_size, frames.down, draw_size, anchor),
             left: sprite_from_sheet(texture.clone(), frame_size, frames.left, draw_size, anchor),
             right: sprite_from_sheet(texture.clone(), frame_size, frames.right, draw_size, anchor),
+        },
+    );
+}
+
+fn animated_clip_from_sheet(
+    texture: Texture2D,
+    frame_size: Vec2,
+    frames: AnimationFrameMap,
+    draw_size: Vec2,
+    anchor: Vec2,
+) -> AnimatedSpriteClip {
+    AnimatedSpriteClip {
+        idle: sprite_from_sheet(texture.clone(), frame_size, frames.idle, draw_size, anchor),
+        walk: frames
+            .walk
+            .iter()
+            .map(|frame| sprite_from_sheet(texture.clone(), frame_size, *frame, draw_size, anchor))
+            .collect(),
+        shoot: sprite_from_sheet(texture, frame_size, frames.shoot, draw_size, anchor),
+    }
+}
+
+fn register_directional_animated_sheet_sprite_set(
+    sprites: &mut HashMap<DirectionalSpriteId, DirectionalAnimatedSpriteSet>,
+    id: DirectionalSpriteId,
+    texture: &Texture2D,
+    frame_size: Vec2,
+    frames: DirectionalAnimationFrameMap,
+    draw_size: Vec2,
+    anchor: Vec2,
+) {
+    sprites.insert(
+        id,
+        DirectionalAnimatedSpriteSet {
+            up: animated_clip_from_sheet(texture.clone(), frame_size, frames.up, draw_size, anchor),
+            down: animated_clip_from_sheet(
+                texture.clone(),
+                frame_size,
+                frames.down,
+                draw_size,
+                anchor,
+            ),
+            left: animated_clip_from_sheet(
+                texture.clone(),
+                frame_size,
+                frames.left,
+                draw_size,
+                anchor,
+            ),
+            right: animated_clip_from_sheet(
+                texture.clone(),
+                frame_size,
+                frames.right,
+                draw_size,
+                anchor,
+            ),
         },
     );
 }
