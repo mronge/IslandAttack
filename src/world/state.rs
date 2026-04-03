@@ -1,4 +1,4 @@
-use crate::entities::{Bullet, Enemy, Jeep};
+use crate::entities::{Bullet, Enemy, EnemyKind, Jeep};
 use crate::world::ImportedMap;
 use macroquad::prelude::*;
 
@@ -18,22 +18,21 @@ impl World {
         let mut enemies = Vec::new();
 
         for spawn in map.enemy_spawns() {
-            let center = map.tile_center(spawn.tile);
-            let rect = Rect::new(
-                center.x - spawn.kind.size().x * 0.5,
-                center.y - spawn.kind.size().y * 0.5,
-                spawn.kind.size().x,
-                spawn.kind.size().y,
-            );
-            assert!(
-                !map.collides_rect(rect),
-                "enemy spawn at tile ({}, {}) collides with the map",
-                spawn.tile.x,
-                spawn.tile.y
-            );
+            for pos in enemy_spawn_positions(&map, *spawn) {
+                let rect = Rect::new(
+                    pos.x - spawn.kind.size().x * 0.5,
+                    pos.y - spawn.kind.size().y * 0.5,
+                    spawn.kind.size().x,
+                    spawn.kind.size().y,
+                );
+                assert!(
+                    !map.collides_rect(rect),
+                    "enemy spawn at tile ({}, {}) collides with the map",
+                    spawn.tile.x,
+                    spawn.tile.y
+                );
 
-            for _ in 0..spawn.count {
-                enemies.push(Enemy::new_with_kind(center, spawn.kind));
+                enemies.push(Enemy::new_with_kind(pos, spawn.kind));
             }
         }
 
@@ -58,5 +57,44 @@ impl World {
         for bullet in &mut self.bullets {
             bullet.prev_pos = bullet.pos;
         }
+    }
+}
+
+fn enemy_spawn_positions(map: &ImportedMap, spawn: crate::world::map::EnemySpawn) -> Vec<Vec2> {
+    let center = map.tile_center(spawn.tile);
+
+    match (spawn.kind, spawn.count) {
+        // Two soldiers on one tile need distinct centers or they render as one
+        // stacked sprite and immediately behave like they are occupying the
+        // exact same point.
+        (EnemyKind::Soldier, 2) => {
+            let half_step = (map.tile_size - spawn.kind.size().x) * 0.5;
+            vec![
+                center + vec2(-half_step, 0.0),
+                center + vec2(half_step, 0.0),
+            ]
+        }
+        _ => vec![center; spawn.count],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::map::EnemySpawn;
+
+    #[test]
+    fn two_soldier_spawn_points_are_separated_within_the_tile() {
+        let map = ImportedMap::load();
+        let spawn = EnemySpawn {
+            tile: ivec2(0, 0),
+            kind: EnemyKind::Soldier,
+            count: 2,
+        };
+
+        let positions = enemy_spawn_positions(&map, spawn);
+
+        assert_eq!(positions.len(), 2);
+        assert!(positions[0].distance(positions[1]) >= spawn.kind.size().x);
     }
 }
