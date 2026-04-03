@@ -1,10 +1,16 @@
-use crate::constants::{ENEMY_FIRE_COOLDOWN, ENEMY_SPEED, ENEMY_WALK_FRAME_TIME};
+use crate::constants::{
+    ENEMY_BULLET_DAMAGE, ENEMY_BULLET_RADIUS, ENEMY_BULLET_SPEED, ENEMY_FIRE_COOLDOWN,
+    ENEMY_FIRE_RANGE, ENEMY_SHOOT_DURATION, ENEMY_SPEED, ENEMY_WALK_FRAME_TIME,
+    SOLDIER_RENDER_SIZE, TURRET_BULLET_DAMAGE, TURRET_BULLET_RADIUS, TURRET_BULLET_SPEED,
+    TURRET_FIRE_COOLDOWN, TURRET_FIRE_RANGE, TURRET_HP, TURRET_SIZE,
+};
 use crate::entities::Direction;
 use macroquad::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EnemyKind {
     Soldier,
+    Turret,
 }
 
 impl EnemyKind {
@@ -13,7 +19,82 @@ impl EnemyKind {
             // Keep the cap with the enemy kind so later variants can tighten it
             // without scattering occupancy rules across movement code.
             Self::Soldier => 2,
+            Self::Turret => 1,
         }
+    }
+
+    pub fn hp(self) -> i32 {
+        match self {
+            Self::Soldier => 2,
+            Self::Turret => TURRET_HP,
+        }
+    }
+
+    pub fn speed(self) -> f32 {
+        match self {
+            Self::Soldier => ENEMY_SPEED,
+            Self::Turret => 0.0,
+        }
+    }
+
+    pub fn size(self) -> Vec2 {
+        match self {
+            Self::Soldier => vec2(16.0, 16.0),
+            Self::Turret => vec2(TURRET_SIZE, TURRET_SIZE),
+        }
+    }
+
+    pub fn render_size(self) -> Vec2 {
+        match self {
+            Self::Soldier => vec2(SOLDIER_RENDER_SIZE, SOLDIER_RENDER_SIZE),
+            Self::Turret => vec2(TURRET_SIZE, TURRET_SIZE),
+        }
+    }
+
+    pub fn fire_cooldown(self) -> f32 {
+        match self {
+            Self::Soldier => ENEMY_FIRE_COOLDOWN,
+            Self::Turret => TURRET_FIRE_COOLDOWN,
+        }
+    }
+
+    pub fn fire_range(self) -> f32 {
+        match self {
+            Self::Soldier => ENEMY_FIRE_RANGE,
+            Self::Turret => TURRET_FIRE_RANGE,
+        }
+    }
+
+    pub fn shoot_duration(self) -> f32 {
+        match self {
+            Self::Soldier => ENEMY_SHOOT_DURATION,
+            Self::Turret => ENEMY_SHOOT_DURATION,
+        }
+    }
+
+    pub fn bullet_speed(self) -> f32 {
+        match self {
+            Self::Soldier => ENEMY_BULLET_SPEED,
+            Self::Turret => TURRET_BULLET_SPEED,
+        }
+    }
+
+    pub fn bullet_damage(self) -> i32 {
+        match self {
+            Self::Soldier => ENEMY_BULLET_DAMAGE,
+            Self::Turret => TURRET_BULLET_DAMAGE,
+        }
+    }
+
+    pub fn bullet_radius(self) -> f32 {
+        match self {
+            Self::Soldier => ENEMY_BULLET_RADIUS,
+            Self::Turret => TURRET_BULLET_RADIUS,
+        }
+    }
+
+    pub fn is_stationary(self) -> bool {
+        matches!(self, Self::Turret)
     }
 }
 
@@ -40,14 +121,18 @@ pub struct Enemy {
 
 impl Enemy {
     pub fn new(pos: Vec2) -> Self {
+        Self::new_with_kind(pos, EnemyKind::Soldier)
+    }
+
+    pub fn new_with_kind(pos: Vec2, kind: EnemyKind) -> Self {
         Self {
             prev_pos: pos,
             pos,
             dir: Direction::Down,
-            kind: EnemyKind::Soldier,
-            hp: 2,
-            speed: ENEMY_SPEED,
-            fire_cooldown: ENEMY_FIRE_COOLDOWN * 0.5,
+            kind,
+            hp: kind.hp(),
+            speed: kind.speed(),
+            fire_cooldown: kind.fire_cooldown() * 0.5,
             shoot_timer: 0.0,
             animation_state: EnemyAnimState::Idle,
             animation_timer: 0.0,
@@ -55,7 +140,11 @@ impl Enemy {
     }
 
     pub fn size(&self) -> Vec2 {
-        vec2(16.0, 16.0)
+        self.kind.size()
+    }
+
+    pub fn render_size(&self) -> Vec2 {
+        self.kind.render_size()
     }
 
     pub fn render_pos(&self, alpha: f32) -> Vec2 {

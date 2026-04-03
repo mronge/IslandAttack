@@ -79,7 +79,7 @@ fn draw_collision_tiles(world: &World, top_left: Vec2) {
 fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     for enemy in &world.enemies {
         let pos = world_to_screen(enemy.render_pos(alpha), top_left);
-        let size = vec2(world.map.tile_size, world.map.tile_size);
+        let size = enemy.render_size();
         draw_ellipse(
             pos.x,
             pos.y + size.y * 0.24,
@@ -88,16 +88,14 @@ fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
             0.0,
             Color::new(0.0, 0.0, 0.0, 0.14),
         );
-        draw_sprite_centered_sized(
-            assets.animated_directional_sprite(
-                enemy_sprite_id(enemy.kind),
-                enemy.dir,
-                enemy.animation_state,
-                enemy.walk_frame_index(),
-            ),
+        draw_enemy(
+            assets,
+            enemy.kind,
+            enemy.dir,
+            enemy.animation_state,
+            enemy.walk_frame_index(),
             pos,
             size,
-            WHITE,
         );
     }
 }
@@ -218,8 +216,51 @@ fn visible_tile_bounds(world: &World, top_left: Vec2, padding_tiles: i32) -> (i3
     (min_x, max_x, min_y, max_y)
 }
 
-fn enemy_sprite_id(kind: EnemyKind) -> DirectionalSpriteId {
+fn draw_enemy(
+    assets: &Assets,
+    kind: EnemyKind,
+    dir: crate::entities::Direction,
+    animation_state: crate::entities::EnemyAnimState,
+    walk_frame_index: usize,
+    pos: Vec2,
+    size: Vec2,
+) {
     match kind {
-        EnemyKind::Soldier => DirectionalSpriteId::Soldier,
+        EnemyKind::Soldier => draw_sprite_centered_sized(
+            assets.animated_directional_sprite(
+                DirectionalSpriteId::Soldier,
+                dir,
+                animation_state,
+                walk_frame_index,
+            ),
+            pos,
+            size,
+            WHITE,
+        ),
+        EnemyKind::Turret => {
+            let top_left = pos - size * 0.5;
+            draw_rectangle(
+                top_left.x,
+                top_left.y,
+                size.x,
+                size.y,
+                color_u8!(121, 78, 43, 255),
+            );
+            draw_rectangle(
+                top_left.x + 2.0,
+                top_left.y + 2.0,
+                size.x - 4.0,
+                size.y - 4.0,
+                color_u8!(159, 105, 61, 255),
+            );
+            draw_rectangle_lines(
+                top_left.x,
+                top_left.y,
+                size.x,
+                size.y,
+                1.0,
+                color_u8!(62, 35, 18, 255),
+            );
+        }
     }
 }

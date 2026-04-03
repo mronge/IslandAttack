@@ -1,6 +1,5 @@
 use crate::constants::{
-    BULLET_SPEED, ENEMY_BULLET_SPEED, ENEMY_FIRE_COOLDOWN, ENEMY_FIRE_RANGE, ENEMY_SHOOT_DURATION,
-    JEEP_ACCEL, JEEP_BRAKE, PLAYER_FIRE_COOLDOWN,
+    BULLET_SPEED, JEEP_ACCEL, JEEP_BRAKE, PLAYER_BULLET_DAMAGE, PLAYER_FIRE_COOLDOWN,
 };
 use crate::entities::{Bullet, BulletOwner, Direction, Enemy, EnemyAnimState, EnemyKind};
 use crate::input::PlayerCommand;
@@ -59,11 +58,14 @@ impl World {
 
         if command.fire && self.player.fire_cooldown <= 0.0 {
             let muzzle = self.player.pos + self.player.dir.as_vec() * (self.player.size().x * 0.62);
-            self.bullets.push(Bullet::new(
-                muzzle,
-                self.player.dir.as_vec() * BULLET_SPEED,
-                BulletOwner::Player,
-            ));
+            self.bullets.push(
+                Bullet::new(
+                    muzzle,
+                    self.player.dir.as_vec() * BULLET_SPEED,
+                    BulletOwner::Player,
+                )
+                .with_damage(PLAYER_BULLET_DAMAGE),
+            );
             self.player.fire_cooldown = PLAYER_FIRE_COOLDOWN;
         }
     }
@@ -89,9 +91,11 @@ impl World {
                 match bullet.owner {
                     BulletOwner::Player => {
                         for enemy in &mut self.enemies {
-                            if enemy.hp > 0 && enemy.pos.distance(bullet.pos) <= bullet.radius + 9.0
+                            if enemy.hp > 0
+                                && enemy.pos.distance(bullet.pos)
+                                    <= bullet.radius + enemy.size().x * 0.5
                             {
-                                enemy.hp -= 1;
+                                enemy.hp -= bullet.damage;
                                 hit = true;
                                 break;
                             }
@@ -101,7 +105,7 @@ impl World {
                         if self.player.pos.distance(bullet.pos)
                             <= bullet.radius + self.player.size().x * 0.5
                         {
-                            player_hits += 1;
+                            player_hits += bullet.damage;
                             hit = true;
                         }
                     }
@@ -154,7 +158,7 @@ impl World {
             let distance = distance_sq.sqrt();
             let step_dir = to_player / distance;
             enemy.dir = Direction::from_vec(step_dir);
-            let can_shoot_from_here = distance <= ENEMY_FIRE_RANGE
+            let can_shoot_from_here = distance <= enemy.kind.fire_range()
                 && self.map.has_line_of_sight(enemy.pos, self.player.pos);
 
             if enemy.shoot_timer > 0.0 {
@@ -166,16 +170,25 @@ impl World {
                 enemy.set_animation_state(EnemyAnimState::Idle);
                 if enemy.fire_cooldown <= 0.0 {
                     enemy.set_animation_state(EnemyAnimState::Shoot);
-                    enemy.shoot_timer = ENEMY_SHOOT_DURATION;
+                    enemy.shoot_timer = enemy.kind.shoot_duration();
 
-                    let muzzle = enemy.pos + step_dir * 12.0;
-                    spawned_bullets.push(Bullet::new(
-                        muzzle,
-                        step_dir * ENEMY_BULLET_SPEED,
-                        BulletOwner::Enemy,
-                    ));
-                    enemy.fire_cooldown = ENEMY_FIRE_COOLDOWN;
+                    let muzzle = enemy.pos + step_dir * (enemy.size().x * 0.75);
+                    spawned_bullets.push(
+                        Bullet::new(
+                            muzzle,
+                            step_dir * enemy.kind.bullet_speed(),
+                            BulletOwner::Enemy,
+                        )
+                        .with_damage(enemy.kind.bullet_damage())
+                        .with_radius(enemy.kind.bullet_radius()),
+                    );
+                    enemy.fire_cooldown = enemy.kind.fire_cooldown();
                 }
+                continue;
+            }
+
+            if enemy.kind.is_stationary() {
+                enemy.set_animation_state(EnemyAnimState::Idle);
                 continue;
             }
 
@@ -317,6 +330,13 @@ mod tests {
     #[test]
     fn soldier_limit_is_two_per_tile() {
         assert_eq!(EnemyKind::Soldier.max_per_tile(), 2);
+    }
+
+    #[test]
+    fn turret_rules_are_stricter_and_stronger() {
+        assert_eq!(EnemyKind::Turret.max_per_tile(), 1);
+        assert!(EnemyKind::Turret.is_stationary());
+        assert!(EnemyKind::Turret.bullet_damage() > EnemyKind::Soldier.bullet_damage());
     }
 
     #[test]
