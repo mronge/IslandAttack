@@ -2,9 +2,19 @@ use crate::constants::{ENEMY_FIRE_COOLDOWN, ENEMY_SPEED, ENEMY_WALK_FRAME_TIME};
 use crate::entities::Direction;
 use macroquad::prelude::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EnemyKind {
     Soldier,
+}
+
+impl EnemyKind {
+    pub fn max_per_tile(self) -> usize {
+        match self {
+            // Keep the cap with the enemy kind so later variants can tighten it
+            // without scattering occupancy rules across movement code.
+            Self::Soldier => 2,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
