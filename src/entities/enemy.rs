@@ -2,7 +2,7 @@ use crate::constants::{
     ENEMY_BULLET_DAMAGE, ENEMY_BULLET_RADIUS, ENEMY_BULLET_SPEED, ENEMY_FIRE_COOLDOWN,
     ENEMY_FIRE_RANGE, ENEMY_SHOOT_DURATION, ENEMY_SPEED, ENEMY_WALK_FRAME_TIME,
     SOLDIER_RENDER_SIZE, TURRET_BULLET_DAMAGE, TURRET_BULLET_RADIUS, TURRET_BULLET_SPEED,
-    TURRET_FIRE_COOLDOWN, TURRET_FIRE_RANGE, TURRET_HP, TURRET_SIZE,
+    TURRET_FIRE_COOLDOWN, TURRET_FIRE_RANGE, TURRET_HP, TURRET_RENDER_SIZE, TURRET_SIZE,
 };
 use crate::entities::Direction;
 use macroquad::prelude::*;
@@ -47,7 +47,7 @@ impl EnemyKind {
     pub fn render_size(self) -> Vec2 {
         match self {
             Self::Soldier => vec2(SOLDIER_RENDER_SIZE, SOLDIER_RENDER_SIZE),
-            Self::Turret => vec2(TURRET_SIZE, TURRET_SIZE),
+            Self::Turret => vec2(TURRET_RENDER_SIZE, TURRET_RENDER_SIZE),
         }
     }
 

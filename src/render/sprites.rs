@@ -77,6 +77,7 @@ fn draw_collision_tiles(world: &World, top_left: Vec2) {
 }
 
 fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
+    let player_pos = world.player.render_pos(alpha);
     for enemy in &world.enemies {
         let pos = world_to_screen(enemy.render_pos(alpha), top_left);
         let size = enemy.render_size();
@@ -94,6 +95,9 @@ fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
             enemy.dir,
             enemy.animation_state,
             enemy.walk_frame_index(),
+            // Turrets use the live vector to the player for 8-way aiming. The
+            // soldier path ignores this and still uses its 4-way animation set.
+            player_pos - enemy.render_pos(alpha),
             pos,
             size,
         );
@@ -222,6 +226,7 @@ fn draw_enemy(
     dir: crate::entities::Direction,
     animation_state: crate::entities::EnemyAnimState,
     walk_frame_index: usize,
+    aim_delta: Vec2,
     pos: Vec2,
     size: Vec2,
 ) {
@@ -237,30 +242,54 @@ fn draw_enemy(
             size,
             WHITE,
         ),
-        EnemyKind::Turret => {
-            let top_left = pos - size * 0.5;
-            draw_rectangle(
-                top_left.x,
-                top_left.y,
-                size.x,
-                size.y,
-                color_u8!(121, 78, 43, 255),
-            );
-            draw_rectangle(
-                top_left.x + 2.0,
-                top_left.y + 2.0,
-                size.x - 4.0,
-                size.y - 4.0,
-                color_u8!(159, 105, 61, 255),
-            );
-            draw_rectangle_lines(
-                top_left.x,
-                top_left.y,
-                size.x,
-                size.y,
-                1.0,
-                color_u8!(62, 35, 18, 255),
-            );
-        }
+        EnemyKind::Turret => draw_sprite_centered_sized(
+            assets.turret_sprite(turret_frame_index(aim_delta)),
+            pos,
+            size,
+            WHITE,
+        ),
+    }
+}
+
+fn turret_frame_index(aim_delta: Vec2) -> usize {
+    if aim_delta.length_squared() <= f32::EPSILON {
+        // Default to the neutral "down" frame if the target is effectively on
+        // top of the turret and the aim vector collapses to zero.
+        return 4;
+    }
+
+    let angle = aim_delta.y.atan2(aim_delta.x);
+    let octant = ((angle / std::f32::consts::FRAC_PI_4).round() as i32).rem_euclid(8);
+
+    // `turret.png` is laid out as:
+    // south, southeast, east, northeast, north, northwest, west, southwest.
+    match octant {
+        0 => 2,
+        1 => 1,
+        2 => 0,
+        3 => 7,
+        4 => 6,
+        5 => 5,
+        6 => 4,
+        7 => 3,
+        _ => unreachable!(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::turret_frame_index;
+    use macroquad::prelude::vec2;
+
+    #[test]
+    fn turret_frame_mapping_covers_cardinal_and_diagonal_aim() {
+        assert_eq!(turret_frame_index(vec2(1.0, 0.0)), 2);
+        assert_eq!(turret_frame_index(vec2(1.0, -1.0)), 3);
+        assert_eq!(turret_frame_index(vec2(0.0, -1.0)), 4);
+        assert_eq!(turret_frame_index(vec2(-1.0, -1.0)), 5);
+        assert_eq!(turret_frame_index(vec2(-1.0, 0.0)), 6);
+        assert_eq!(turret_frame_index(vec2(-1.0, 1.0)), 7);
+        assert_eq!(turret_frame_index(vec2(0.0, 1.0)), 0);
+        assert_eq!(turret_frame_index(vec2(1.0, 1.0)), 1);
     }
 }

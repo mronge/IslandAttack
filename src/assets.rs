@@ -7,6 +7,7 @@ pub struct Assets {
     atlas: Texture2D,
     directional_sprites: HashMap<DirectionalSpriteId, DirectionalSpriteSet>,
     animated_directional_sprites: HashMap<DirectionalSpriteId, DirectionalAnimatedSpriteSet>,
+    turret_sprites: Vec<SpriteAsset>,
 }
 
 #[derive(Clone)]
@@ -75,6 +76,15 @@ impl Assets {
                 )
             });
         soldier_sheet.set_filter(FilterMode::Nearest);
+        let turret_sheet = load_texture(crate::constants::TURRET_SPRITESHEET_PATH)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load turret spritesheet: {}",
+                    crate::constants::TURRET_SPRITESHEET_PATH
+                )
+            });
+        turret_sheet.set_filter(FilterMode::Nearest);
 
         let mut directional_sprites = HashMap::new();
         let mut animated_directional_sprites = HashMap::new();
@@ -122,11 +132,26 @@ impl Assets {
             vec2(32.0, 32.0),
             vec2(16.0, 16.0),
         );
+        // The turret sheet is a single row of 8 pre-rotated frames, so keep
+        // them as a flat array and let render code choose the correct one from
+        // the current aim vector.
+        let turret_sprites = (0..8)
+            .map(|frame| {
+                sprite_from_sheet(
+                    turret_sheet.clone(),
+                    vec2(32.0, 32.0),
+                    frame,
+                    vec2(32.0, 32.0),
+                    vec2(16.0, 16.0),
+                )
+            })
+            .collect();
 
         Self {
             atlas,
             directional_sprites,
             animated_directional_sprites,
+            turret_sprites,
         }
     }
 
@@ -170,6 +195,12 @@ impl Assets {
             EnemyAnimState::Shoot => &clip.shoot,
             EnemyAnimState::Walk => &clip.walk[frame_index % clip.walk.len()],
         }
+    }
+
+    pub fn turret_sprite(&self, frame_index: usize) -> &SpriteAsset {
+        // Frame selection is normalized by the caller, but wrap anyway so the
+        // asset accessor stays safe if the sheet order changes later.
+        &self.turret_sprites[frame_index % self.turret_sprites.len()]
     }
 }
 
