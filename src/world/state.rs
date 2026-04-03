@@ -1,5 +1,4 @@
-use crate::constants::{INITIAL_SOLDIER_COUNT, INITIAL_TURRET_COUNT};
-use crate::entities::{Bullet, Enemy, EnemyKind, Jeep};
+use crate::entities::{Bullet, Enemy, Jeep};
 use crate::world::ImportedMap;
 use macroquad::prelude::*;
 
@@ -16,28 +15,26 @@ impl World {
         let map = ImportedMap::load();
         let probe = Jeep::new(Vec2::ZERO);
         let player_spawn = map.default_spawn_point_for(probe.size());
-        let enemy_spawn_points = map
-            .enemy_spawn_points(
-                vec2(16.0, 16.0),
-                INITIAL_SOLDIER_COUNT + INITIAL_TURRET_COUNT,
-                player_spawn,
-                5.0 * map.tile_size,
-            )
-            .into_iter()
-            .collect::<Vec<_>>();
-        let mut enemies = Vec::with_capacity(enemy_spawn_points.len());
+        let mut enemies = Vec::new();
 
-        // Reserve the farthest spawn points for fixed turrets so they pressure
-        // the player from strong positions without crowding the opening area.
-        for pos in enemy_spawn_points.iter().take(INITIAL_TURRET_COUNT) {
-            enemies.push(Enemy::new_with_kind(*pos, EnemyKind::Turret));
-        }
-        for pos in enemy_spawn_points
-            .iter()
-            .skip(INITIAL_TURRET_COUNT)
-            .take(INITIAL_SOLDIER_COUNT)
-        {
-            enemies.push(Enemy::new_with_kind(*pos, EnemyKind::Soldier));
+        for spawn in map.enemy_spawns() {
+            let center = map.tile_center(spawn.tile);
+            let rect = Rect::new(
+                center.x - spawn.kind.size().x * 0.5,
+                center.y - spawn.kind.size().y * 0.5,
+                spawn.kind.size().x,
+                spawn.kind.size().y,
+            );
+            assert!(
+                !map.collides_rect(rect),
+                "enemy spawn at tile ({}, {}) collides with the map",
+                spawn.tile.x,
+                spawn.tile.y
+            );
+
+            for _ in 0..spawn.count {
+                enemies.push(Enemy::new_with_kind(center, spawn.kind));
+            }
         }
 
         Self {

@@ -1,4 +1,5 @@
 use crate::constants::{MAP_PATH, MAP_SPRITESHEET_PATH};
+use crate::entities::EnemyKind;
 use image::ImageReader;
 use macroquad::prelude::{IVec2, Rect, Vec2, ivec2, vec2};
 use serde::Deserialize;
@@ -24,8 +25,16 @@ pub struct ImportedMap {
     pub height: usize,
     pub tile_size: f32,
     pub layers: Vec<MapLayer>,
+    enemy_spawns: Vec<EnemySpawn>,
     preferred_spawn_tiles: Vec<bool>,
     collision_pixels: Vec<bool>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EnemySpawn {
+    pub tile: IVec2,
+    pub kind: EnemyKind,
+    pub count: usize,
 }
 
 #[derive(Deserialize)]
@@ -61,10 +70,16 @@ impl ImportedMap {
         let raw_map: RawMap = serde_json::from_str(&raw)
             .unwrap_or_else(|_| panic!("failed to parse map: {MAP_PATH}"));
 
-        let layers: Vec<MapLayer> = raw_map
-            .layers
-            .into_iter()
-            .map(|layer| MapLayer {
+        let mut layers = Vec::new();
+        let mut enemy_spawns = Vec::new();
+
+        for layer in raw_map.layers {
+            if is_enemy_spawn_layer(&layer.name) {
+                enemy_spawns.extend(layer.tiles.into_iter().map(enemy_spawn_from_raw_tile));
+                continue;
+            }
+
+            layers.push(MapLayer {
                 name: layer.name,
                 collider: layer.collider,
                 tiles: layer
@@ -75,8 +90,8 @@ impl ImportedMap {
                         pos: ivec2(tile.x, tile.y),
                     })
                     .collect(),
-            })
-            .collect();
+            });
+        }
 
         let mut preferred_spawn_tiles = vec![false; raw_map.map_width * raw_map.map_height];
 
@@ -120,6 +135,7 @@ impl ImportedMap {
             height: raw_map.map_height,
             tile_size: f32::from(raw_map.tile_size),
             layers,
+            enemy_spawns,
             preferred_spawn_tiles,
             collision_pixels,
         }
@@ -301,50 +317,8 @@ impl ImportedMap {
             .unwrap_or_else(|| self.dimensions_px() * 0.5)
     }
 
-    pub fn enemy_spawn_points(
-        &self,
-        size: Vec2,
-        count: usize,
-        avoid_center: Vec2,
-        min_distance: f32,
-    ) -> Vec<Vec2> {
-        let mut candidates = Vec::new();
-
-        for y in 0..self.height as i32 {
-            for x in 0..self.width as i32 {
-                let tile = ivec2(x, y);
-                let Some(idx) = self.tile_index(tile) else {
-                    continue;
-                };
-                if !self.preferred_spawn_tiles[idx] {
-                    continue;
-                }
-
-                let center = self.tile_center(tile);
-                if center.distance(avoid_center) < min_distance {
-                    continue;
-                }
-
-                let rect = Rect::new(
-                    center.x - size.x * 0.5,
-                    center.y - size.y * 0.5,
-                    size.x,
-                    size.y,
-                );
-                if self.collides_rect(rect) {
-                    continue;
-                }
-
-                candidates.push(center);
-            }
-        }
-
-        candidates.sort_by(|a, b| {
-            b.distance_squared(avoid_center)
-                .total_cmp(&a.distance_squared(avoid_center))
-        });
-        candidates.truncate(count);
-        candidates
+    pub fn enemy_spawns(&self) -> &[EnemySpawn] {
+        &self.enemy_spawns
     }
 }
 
@@ -353,9 +327,37 @@ fn tile_index(width: usize, height: usize, tile: IVec2) -> Option<usize> {
         .then_some(tile.y as usize * width + tile.x as usize)
 }
 
+fn enemy_spawn_from_raw_tile(tile: RawTile) -> EnemySpawn {
+    match tile.id.as_str() {
+        "0" => EnemySpawn {
+            tile: ivec2(tile.x, tile.y),
+            kind: EnemyKind::Soldier,
+            count: 1,
+        },
+        "1" => EnemySpawn {
+            tile: ivec2(tile.x, tile.y),
+            kind: EnemyKind::Soldier,
+            count: 2,
+        },
+        "2" => EnemySpawn {
+            tile: ivec2(tile.x, tile.y),
+            kind: EnemyKind::Turret,
+            count: 1,
+        },
+        other => panic!("unknown enemy spawn tile id: {other}"),
+    }
+}
+
 fn layer_name_matches(name: &str, needles: &[&str]) -> bool {
     let lower = name.to_ascii_lowercase();
     needles.iter().any(|needle| lower.contains(needle))
+}
+
+fn is_enemy_spawn_layer(name: &str) -> bool {
+    matches!(
+        name.trim().to_ascii_lowercase().as_str(),
+        "enemy" | "enemies"
+    )
 }
 
 fn build_collision_pixels(
@@ -497,4 +499,58 @@ fn tile_alpha_mask(
     }
 
     mask
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_enemy_spawn_marker_ids() {
+        assert_eq!(
+            enemy_spawn_from_raw_tile(RawTile {
+                id: "0".to_owned(),
+                x: 1,
+                y: 2,
+            }),
+            EnemySpawn {
+                tile: ivec2(1, 2),
+                kind: EnemyKind::Soldier,
+                count: 1,
+            }
+        );
+        assert_eq!(
+            enemy_spawn_from_raw_tile(RawTile {
+                id: "1".to_owned(),
+                x: 3,
+                y: 4,
+            }),
+            EnemySpawn {
+                tile: ivec2(3, 4),
+                kind: EnemyKind::Soldier,
+                count: 2,
+            }
+        );
+        assert_eq!(
+            enemy_spawn_from_raw_tile(RawTile {
+                id: "2".to_owned(),
+                x: 5,
+                y: 6,
+            }),
+            EnemySpawn {
+                tile: ivec2(5, 6),
+                kind: EnemyKind::Turret,
+                count: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn recognizes_enemy_spawn_layer_names() {
+        assert!(is_enemy_spawn_layer("Enemy"));
+        assert!(is_enemy_spawn_layer("Enemies"));
+        assert!(is_enemy_spawn_layer(" enemies "));
+        assert!(!is_enemy_spawn_layer("Land enemies"));
+        assert!(!is_enemy_spawn_layer("Enemy markers"));
+    }
 }
