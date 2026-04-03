@@ -8,6 +8,7 @@ pub struct Assets {
     facing4_sprites: HashMap<Facing4SpriteId, Facing4SpriteSet>,
     animated_facing4_sprites: HashMap<Facing4SpriteId, AnimatedFacing4SpriteSet>,
     facing8_sprites: HashMap<Facing8SpriteId, Facing8SpriteSet>,
+    static_sprites: HashMap<StaticSpriteId, SpriteAsset>,
 }
 
 #[derive(Clone)]
@@ -27,6 +28,11 @@ pub enum Facing4SpriteId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Facing8SpriteId {
     Turret,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum StaticSpriteId {
+    TurretDestroyed,
 }
 
 #[derive(Clone)]
@@ -102,10 +108,20 @@ impl Assets {
                 )
             });
         turret_sheet.set_filter(FilterMode::Nearest);
+        let turret_destroyed = load_texture(crate::constants::TURRET_DESTROYED_SPRITE_PATH)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load destroyed turret sprite: {}",
+                    crate::constants::TURRET_DESTROYED_SPRITE_PATH
+                )
+            });
+        turret_destroyed.set_filter(FilterMode::Nearest);
 
         let mut facing4_sprites = HashMap::new();
         let mut animated_facing4_sprites = HashMap::new();
         let mut facing8_sprites = HashMap::new();
+        let mut static_sprites = HashMap::new();
         register_facing4_sheet_sprite_set(
             &mut facing4_sprites,
             Facing4SpriteId::Jeep,
@@ -168,12 +184,22 @@ impl Assets {
             vec2(32.0, 32.0),
             vec2(16.0, 16.0),
         );
+        static_sprites.insert(
+            StaticSpriteId::TurretDestroyed,
+            SpriteAsset {
+                texture: turret_destroyed,
+                source: None,
+                draw_size: vec2(32.0, 32.0),
+                anchor: vec2(16.0, 16.0),
+            },
+        );
 
         Self {
             atlas,
             facing4_sprites,
             animated_facing4_sprites,
             facing8_sprites,
+            static_sprites,
         }
     }
 
@@ -234,6 +260,12 @@ impl Assets {
             Facing8::West => &set.west,
             Facing8::NorthWest => &set.north_west,
         }
+    }
+
+    pub fn static_sprite(&self, id: StaticSpriteId) -> &SpriteAsset {
+        self.static_sprites
+            .get(&id)
+            .unwrap_or_else(|| panic!("missing static sprite: {id:?}"))
     }
 }
 

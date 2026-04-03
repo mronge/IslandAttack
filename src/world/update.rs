@@ -92,11 +92,14 @@ impl World {
                 match bullet.owner {
                     BulletOwner::Player => {
                         for enemy in &mut self.enemies {
-                            if enemy.hp > 0
+                            if enemy.can_act()
                                 && enemy.pos.distance(bullet.pos)
                                     <= bullet.radius + enemy.size().x * 0.5
                             {
                                 enemy.hp -= bullet.damage;
+                                if enemy.hp <= 0 && enemy.kind == EnemyKind::Turret {
+                                    enemy.destroy();
+                                }
                                 hit = true;
                                 break;
                             }
@@ -135,14 +138,14 @@ impl World {
         // whether stepping into a neighboring tile would exceed that kind's cap.
         let mut tile_occupancy = HashMap::new();
 
-        for enemy in self.enemies.iter().filter(|enemy| enemy.hp > 0) {
+        for enemy in self.enemies.iter().filter(|enemy| enemy.can_act()) {
             if let Some(tile) = enemy_tile_key(&self.map, enemy.kind, enemy.pos) {
                 *tile_occupancy.entry(tile).or_insert(0) += 1;
             }
         }
 
         for enemy in &mut self.enemies {
-            if enemy.hp <= 0 {
+            if !enemy.can_act() {
                 continue;
             }
 
@@ -232,7 +235,8 @@ impl World {
     }
 
     fn cleanup(&mut self) {
-        self.enemies.retain(|enemy| enemy.hp > 0);
+        self.enemies
+            .retain(|enemy| enemy.kind == EnemyKind::Turret || enemy.hp > 0);
     }
 }
 
@@ -367,6 +371,15 @@ mod tests {
         assert_eq!(EnemyKind::Turret.max_per_tile(), 1);
         assert!(EnemyKind::Turret.is_stationary());
         assert!(EnemyKind::Turret.bullet_damage() > EnemyKind::Soldier.bullet_damage());
+    }
+
+    #[test]
+    fn destroyed_turret_stays_but_cannot_act() {
+        let mut turret = Enemy::new_with_kind(vec2(32.0, 32.0), EnemyKind::Turret);
+        turret.destroy();
+
+        assert!(turret.is_destroyed());
+        assert!(!turret.can_act());
     }
 
     #[test]

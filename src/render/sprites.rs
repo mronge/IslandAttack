@@ -1,6 +1,6 @@
-use crate::assets::{Assets, Facing4SpriteId, Facing8SpriteId, SpriteAsset};
+use crate::assets::{Assets, Facing4SpriteId, Facing8SpriteId, SpriteAsset, StaticSpriteId};
 use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
-use crate::entities::{BulletOwner, EnemyKind, Facing4, Facing8};
+use crate::entities::{BulletOwner, Enemy, EnemyKind, Facing4, Facing8};
 use crate::world::{World, rect_from_center};
 use macroquad::prelude::*;
 
@@ -94,10 +94,7 @@ fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
         );
         draw_enemy(
             assets,
-            enemy.kind,
-            enemy.dir,
-            enemy.animation_state,
-            enemy.walk_frame_index(),
+            enemy,
             // Turrets use the live vector to the player for 8-way aiming. The
             // soldier path ignores this and still uses its 4-way animation set.
             player_pos - enemy.render_pos(alpha),
@@ -223,33 +220,26 @@ fn visible_tile_bounds(world: &World, top_left: Vec2, padding_tiles: i32) -> (i3
     (min_x, max_x, min_y, max_y)
 }
 
-fn draw_enemy(
-    assets: &Assets,
-    kind: EnemyKind,
-    dir: crate::entities::Direction,
-    animation_state: crate::entities::EnemyAnimState,
-    walk_frame_index: usize,
-    aim_delta: Vec2,
-    pos: Vec2,
-    size: Vec2,
-) {
-    match kind {
+fn draw_enemy(assets: &Assets, enemy: &Enemy, aim_delta: Vec2, pos: Vec2, size: Vec2) {
+    match enemy.kind {
         EnemyKind::Soldier => draw_sprite_centered_sized(
             assets.animated_facing4_sprite(
                 Facing4SpriteId::Soldier,
-                Facing4::from_direction(dir),
-                animation_state,
-                walk_frame_index,
+                Facing4::from_direction(enemy.dir),
+                enemy.animation_state,
+                enemy.walk_frame_index(),
             ),
             pos,
             size,
             WHITE,
         ),
-        EnemyKind::Turret => draw_sprite_centered_sized(
-            assets.facing8_sprite(Facing8SpriteId::Turret, Facing8::from_vec(aim_delta)),
-            pos,
-            size,
-            WHITE,
-        ),
+        EnemyKind::Turret => {
+            let sprite = if enemy.is_destroyed() {
+                assets.static_sprite(StaticSpriteId::TurretDestroyed)
+            } else {
+                assets.facing8_sprite(Facing8SpriteId::Turret, Facing8::from_vec(aim_delta))
+            };
+            draw_sprite_centered_sized(sprite, pos, size, WHITE);
+        }
     }
 }

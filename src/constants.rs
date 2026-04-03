@@ -8,6 +8,7 @@ pub const MAP_SPRITESHEET_PATH: &str = "sprites/map.png";
 pub const JEEP_SPRITESHEET_PATH: &str = "sprites/jeep.png";
 pub const SOLDIER_SPRITESHEET_PATH: &str = "sprites/soldier.png";
 pub const TURRET_SPRITESHEET_PATH: &str = "sprites/turret.png";
+pub const TURRET_DESTROYED_SPRITE_PATH: &str = "sprites/turret-destroyed.png";
 pub const JEEP_SPEED: f32 = 210.0;
 pub const JEEP_ACCEL: f32 = 800.0;
 pub const JEEP_BRAKE: f32 = 1050.0;

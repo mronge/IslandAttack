@@ -7,6 +7,12 @@ use crate::constants::{
 use crate::entities::Direction;
 use macroquad::prelude::*;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnemyState {
+    Active,
+    Destroyed,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EnemyKind {
     Soldier,
@@ -111,6 +117,7 @@ pub struct Enemy {
     pub pos: Vec2,
     pub dir: Direction,
     pub kind: EnemyKind,
+    pub state: EnemyState,
     pub hp: i32,
     pub speed: f32,
     pub fire_cooldown: f32,
@@ -130,6 +137,7 @@ impl Enemy {
             pos,
             dir: Direction::Down,
             kind,
+            state: EnemyState::Active,
             hp: kind.hp(),
             speed: kind.speed(),
             fire_cooldown: kind.fire_cooldown() * 0.5,
@@ -149,6 +157,22 @@ impl Enemy {
 
     pub fn render_pos(&self, alpha: f32) -> Vec2 {
         self.prev_pos.lerp(self.pos, alpha)
+    }
+
+    pub fn is_destroyed(&self) -> bool {
+        self.state == EnemyState::Destroyed
+    }
+
+    pub fn can_act(&self) -> bool {
+        self.state == EnemyState::Active && self.hp > 0
+    }
+
+    pub fn destroy(&mut self) {
+        self.state = EnemyState::Destroyed;
+        self.hp = 0;
+        self.shoot_timer = 0.0;
+        self.fire_cooldown = 0.0;
+        self.set_animation_state(EnemyAnimState::Idle);
     }
 
     pub fn set_animation_state(&mut self, state: EnemyAnimState) {
