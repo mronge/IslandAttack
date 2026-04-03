@@ -39,8 +39,7 @@ impl World {
         let step = self.player.vel * dt;
         if step.x.abs() > 0.0 {
             let attempt = self.player.pos + vec2(step.x, 0.0);
-            let rect = rect_from_center(attempt, self.player.size());
-            if !self.map.collides_rect(rect) {
+            if can_move_player_to(&self.map, &mut self.enemies, attempt, self.player.size()) {
                 self.player.pos.x = attempt.x;
             } else {
                 self.player.vel.x = 0.0;
@@ -49,8 +48,7 @@ impl World {
 
         if step.y.abs() > 0.0 {
             let attempt = self.player.pos + vec2(0.0, step.y);
-            let rect = rect_from_center(attempt, self.player.size());
-            if !self.map.collides_rect(rect) {
+            if can_move_player_to(&self.map, &mut self.enemies, attempt, self.player.size()) {
                 self.player.pos.y = attempt.y;
             } else {
                 self.player.vel.y = 0.0;
@@ -267,6 +265,44 @@ fn can_enemy_pursue_player(
     }
 }
 
+fn can_move_player_to(
+    map: &ImportedMap,
+    enemies: &mut [Enemy],
+    attempt_pos: Vec2,
+    player_size: Vec2,
+) -> bool {
+    let rect = rect_from_center(attempt_pos, player_size);
+    if map.collides_rect(rect) {
+        return false;
+    }
+
+    // Jeep contact resolves directly against enemies: soldiers are crushed on
+    // impact, while turrets always stay solid, even after being destroyed.
+    !resolve_player_enemy_collision(rect, enemies)
+}
+
+fn resolve_player_enemy_collision(player_rect: Rect, enemies: &mut [Enemy]) -> bool {
+    let mut blocked = false;
+
+    for enemy in enemies {
+        let enemy_rect = rect_from_center(enemy.pos, enemy.size());
+        if !rects_overlap(player_rect, enemy_rect) {
+            continue;
+        }
+
+        match enemy.kind {
+            EnemyKind::Soldier => enemy.hp = 0,
+            EnemyKind::Turret => blocked = true,
+        }
+    }
+
+    blocked
+}
+
+fn rects_overlap(a: Rect, b: Rect) -> bool {
+    a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+}
+
 type EnemyTileKey = (EnemyKind, i32, i32);
 
 fn enemy_tile_key(map: &ImportedMap, kind: EnemyKind, pos: Vec2) -> Option<EnemyTileKey> {
@@ -447,5 +483,37 @@ mod tests {
             rect,
             &tile_occupancy,
         ));
+    }
+
+    #[test]
+    fn jeep_collision_with_soldier_kills_it_without_blocking() {
+        let mut enemies = vec![Enemy::new(vec2(0.0, 0.0))];
+        let player_rect = rect_from_center(vec2(0.0, 0.0), vec2(32.0, 32.0));
+
+        assert!(!resolve_player_enemy_collision(player_rect, &mut enemies));
+        assert_eq!(enemies[0].kind, EnemyKind::Soldier);
+        assert_eq!(enemies[0].hp, 0);
+        assert!(!enemies[0].can_act());
+    }
+
+    #[test]
+    fn turret_collision_blocks_even_when_destroyed() {
+        let player_rect = rect_from_center(vec2(0.0, 0.0), vec2(32.0, 32.0));
+        let mut active_turret = vec![Enemy::new_with_kind(vec2(0.0, 0.0), EnemyKind::Turret)];
+
+        assert!(resolve_player_enemy_collision(
+            player_rect,
+            &mut active_turret
+        ));
+        assert_eq!(active_turret[0].hp, EnemyKind::Turret.hp());
+
+        let mut destroyed_turret = vec![Enemy::new_with_kind(vec2(0.0, 0.0), EnemyKind::Turret)];
+        destroyed_turret[0].destroy();
+
+        assert!(resolve_player_enemy_collision(
+            player_rect,
+            &mut destroyed_turret,
+        ));
+        assert!(destroyed_turret[0].is_destroyed());
     }
 }
