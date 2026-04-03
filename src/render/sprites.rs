@@ -1,6 +1,6 @@
-use crate::assets::{Assets, DirectionalSpriteId, SpriteAsset};
+use crate::assets::{Assets, Facing4SpriteId, Facing8SpriteId, SpriteAsset};
 use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
-use crate::entities::{BulletOwner, EnemyKind};
+use crate::entities::{BulletOwner, EnemyKind, Facing4, Facing8};
 use crate::world::{World, rect_from_center};
 use macroquad::prelude::*;
 
@@ -20,7 +20,10 @@ pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
         Color::new(0.0, 0.0, 0.0, 0.18),
     );
     draw_sprite_centered_sized(
-        assets.directional_sprite(DirectionalSpriteId::Jeep, world.player.dir),
+        assets.facing4_sprite(
+            Facing4SpriteId::Jeep,
+            Facing4::from_direction(world.player.dir),
+        ),
         jeep_pos,
         jeep_size,
         WHITE,
@@ -232,9 +235,9 @@ fn draw_enemy(
 ) {
     match kind {
         EnemyKind::Soldier => draw_sprite_centered_sized(
-            assets.animated_directional_sprite(
-                DirectionalSpriteId::Soldier,
-                dir,
+            assets.animated_facing4_sprite(
+                Facing4SpriteId::Soldier,
+                Facing4::from_direction(dir),
                 animation_state,
                 walk_frame_index,
             ),
@@ -243,53 +246,10 @@ fn draw_enemy(
             WHITE,
         ),
         EnemyKind::Turret => draw_sprite_centered_sized(
-            assets.turret_sprite(turret_frame_index(aim_delta)),
+            assets.facing8_sprite(Facing8SpriteId::Turret, Facing8::from_vec(aim_delta)),
             pos,
             size,
             WHITE,
         ),
-    }
-}
-
-fn turret_frame_index(aim_delta: Vec2) -> usize {
-    if aim_delta.length_squared() <= f32::EPSILON {
-        // Default to the neutral "down" frame if the target is effectively on
-        // top of the turret and the aim vector collapses to zero.
-        return 4;
-    }
-
-    let angle = aim_delta.y.atan2(aim_delta.x);
-    let octant = ((angle / std::f32::consts::FRAC_PI_4).round() as i32).rem_euclid(8);
-
-    // `turret.png` is laid out as:
-    // south, southeast, east, northeast, north, northwest, west, southwest.
-    match octant {
-        0 => 2,
-        1 => 1,
-        2 => 0,
-        3 => 7,
-        4 => 6,
-        5 => 5,
-        6 => 4,
-        7 => 3,
-        _ => unreachable!(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::turret_frame_index;
-    use macroquad::prelude::vec2;
-
-    #[test]
-    fn turret_frame_mapping_covers_cardinal_and_diagonal_aim() {
-        assert_eq!(turret_frame_index(vec2(1.0, 0.0)), 2);
-        assert_eq!(turret_frame_index(vec2(1.0, -1.0)), 3);
-        assert_eq!(turret_frame_index(vec2(0.0, -1.0)), 4);
-        assert_eq!(turret_frame_index(vec2(-1.0, -1.0)), 5);
-        assert_eq!(turret_frame_index(vec2(-1.0, 0.0)), 6);
-        assert_eq!(turret_frame_index(vec2(-1.0, 1.0)), 7);
-        assert_eq!(turret_frame_index(vec2(0.0, 1.0)), 0);
-        assert_eq!(turret_frame_index(vec2(1.0, 1.0)), 1);
     }
 }

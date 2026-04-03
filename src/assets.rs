@@ -1,13 +1,13 @@
-use crate::entities::{Direction, EnemyAnimState};
+use crate::entities::{EnemyAnimState, Facing4, Facing8};
 use macroquad::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct Assets {
     atlas: Texture2D,
-    directional_sprites: HashMap<DirectionalSpriteId, DirectionalSpriteSet>,
-    animated_directional_sprites: HashMap<DirectionalSpriteId, DirectionalAnimatedSpriteSet>,
-    turret_sprites: Vec<SpriteAsset>,
+    facing4_sprites: HashMap<Facing4SpriteId, Facing4SpriteSet>,
+    animated_facing4_sprites: HashMap<Facing4SpriteId, AnimatedFacing4SpriteSet>,
+    facing8_sprites: HashMap<Facing8SpriteId, Facing8SpriteSet>,
 }
 
 #[derive(Clone)]
@@ -19,17 +19,34 @@ pub struct SpriteAsset {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum DirectionalSpriteId {
+pub enum Facing4SpriteId {
     Jeep,
     Soldier,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Facing8SpriteId {
+    Turret,
+}
+
 #[derive(Clone)]
-struct DirectionalSpriteSet {
+struct Facing4SpriteSet {
     up: SpriteAsset,
     down: SpriteAsset,
     left: SpriteAsset,
     right: SpriteAsset,
+}
+
+#[derive(Clone)]
+struct Facing8SpriteSet {
+    north: SpriteAsset,
+    north_east: SpriteAsset,
+    east: SpriteAsset,
+    south_east: SpriteAsset,
+    south: SpriteAsset,
+    south_west: SpriteAsset,
+    west: SpriteAsset,
+    north_west: SpriteAsset,
 }
 
 #[derive(Clone)]
@@ -40,7 +57,7 @@ struct AnimatedSpriteClip {
 }
 
 #[derive(Clone)]
-struct DirectionalAnimatedSpriteSet {
+struct AnimatedFacing4SpriteSet {
     up: AnimatedSpriteClip,
     down: AnimatedSpriteClip,
     left: AnimatedSpriteClip,
@@ -86,14 +103,15 @@ impl Assets {
             });
         turret_sheet.set_filter(FilterMode::Nearest);
 
-        let mut directional_sprites = HashMap::new();
-        let mut animated_directional_sprites = HashMap::new();
-        register_directional_sheet_sprite_set(
-            &mut directional_sprites,
-            DirectionalSpriteId::Jeep,
+        let mut facing4_sprites = HashMap::new();
+        let mut animated_facing4_sprites = HashMap::new();
+        let mut facing8_sprites = HashMap::new();
+        register_facing4_sheet_sprite_set(
+            &mut facing4_sprites,
+            Facing4SpriteId::Jeep,
             &jeep_sheet,
             vec2(64.0, 64.0),
-            DirectionalFrameMap {
+            Facing4FrameMap {
                 up: 5,
                 down: 1,
                 left: 7,
@@ -102,12 +120,12 @@ impl Assets {
             vec2(64.0, 64.0),
             vec2(32.0, 32.0),
         );
-        register_directional_animated_sheet_sprite_set(
-            &mut animated_directional_sprites,
-            DirectionalSpriteId::Soldier,
+        register_animated_facing4_sheet_sprite_set(
+            &mut animated_facing4_sprites,
+            Facing4SpriteId::Soldier,
             &soldier_sheet,
             vec2(32.0, 32.0),
-            DirectionalAnimationFrameMap {
+            Facing4AnimationFrameMap {
                 up: AnimationFrameMap {
                     idle: 12,
                     shoot: 13,
@@ -132,26 +150,30 @@ impl Assets {
             vec2(32.0, 32.0),
             vec2(16.0, 16.0),
         );
-        // The turret sheet is a single row of 8 pre-rotated frames, so keep
-        // them as a flat array and let render code choose the correct one from
-        // the current aim vector.
-        let turret_sprites = (0..8)
-            .map(|frame| {
-                sprite_from_sheet(
-                    turret_sheet.clone(),
-                    vec2(32.0, 32.0),
-                    frame,
-                    vec2(32.0, 32.0),
-                    vec2(16.0, 16.0),
-                )
-            })
-            .collect();
+        register_facing8_sheet_sprite_set(
+            &mut facing8_sprites,
+            Facing8SpriteId::Turret,
+            &turret_sheet,
+            vec2(32.0, 32.0),
+            Facing8FrameMap {
+                south: 0,
+                south_east: 1,
+                east: 2,
+                north_east: 3,
+                north: 4,
+                north_west: 5,
+                west: 6,
+                south_west: 7,
+            },
+            vec2(32.0, 32.0),
+            vec2(16.0, 16.0),
+        );
 
         Self {
             atlas,
-            directional_sprites,
-            animated_directional_sprites,
-            turret_sprites,
+            facing4_sprites,
+            animated_facing4_sprites,
+            facing8_sprites,
         }
     }
 
@@ -159,35 +181,35 @@ impl Assets {
         &self.atlas
     }
 
-    pub fn directional_sprite(&self, id: DirectionalSpriteId, dir: Direction) -> &SpriteAsset {
+    pub fn facing4_sprite(&self, id: Facing4SpriteId, facing: Facing4) -> &SpriteAsset {
         let set = self
-            .directional_sprites
+            .facing4_sprites
             .get(&id)
-            .unwrap_or_else(|| panic!("missing directional sprite set: {id:?}"));
-        match dir {
-            Direction::Up => &set.up,
-            Direction::Down => &set.down,
-            Direction::Left => &set.left,
-            Direction::Right => &set.right,
+            .unwrap_or_else(|| panic!("missing facing4 sprite set: {id:?}"));
+        match facing {
+            Facing4::North => &set.up,
+            Facing4::South => &set.down,
+            Facing4::West => &set.left,
+            Facing4::East => &set.right,
         }
     }
 
-    pub fn animated_directional_sprite(
+    pub fn animated_facing4_sprite(
         &self,
-        id: DirectionalSpriteId,
-        dir: Direction,
+        id: Facing4SpriteId,
+        facing: Facing4,
         state: EnemyAnimState,
         frame_index: usize,
     ) -> &SpriteAsset {
         let set = self
-            .animated_directional_sprites
+            .animated_facing4_sprites
             .get(&id)
-            .unwrap_or_else(|| panic!("missing animated directional sprite set: {id:?}"));
-        let clip = match dir {
-            Direction::Up => &set.up,
-            Direction::Down => &set.down,
-            Direction::Left => &set.left,
-            Direction::Right => &set.right,
+            .unwrap_or_else(|| panic!("missing animated facing4 sprite set: {id:?}"));
+        let clip = match facing {
+            Facing4::North => &set.up,
+            Facing4::South => &set.down,
+            Facing4::West => &set.left,
+            Facing4::East => &set.right,
         };
 
         match state {
@@ -197,15 +219,26 @@ impl Assets {
         }
     }
 
-    pub fn turret_sprite(&self, frame_index: usize) -> &SpriteAsset {
-        // Frame selection is normalized by the caller, but wrap anyway so the
-        // asset accessor stays safe if the sheet order changes later.
-        &self.turret_sprites[frame_index % self.turret_sprites.len()]
+    pub fn facing8_sprite(&self, id: Facing8SpriteId, facing: Facing8) -> &SpriteAsset {
+        let set = self
+            .facing8_sprites
+            .get(&id)
+            .unwrap_or_else(|| panic!("missing facing8 sprite set: {id:?}"));
+        match facing {
+            Facing8::North => &set.north,
+            Facing8::NorthEast => &set.north_east,
+            Facing8::East => &set.east,
+            Facing8::SouthEast => &set.south_east,
+            Facing8::South => &set.south,
+            Facing8::SouthWest => &set.south_west,
+            Facing8::West => &set.west,
+            Facing8::NorthWest => &set.north_west,
+        }
     }
 }
 
 #[derive(Clone, Copy)]
-struct DirectionalFrameMap {
+struct Facing4FrameMap {
     up: u32,
     down: u32,
     left: u32,
@@ -220,11 +253,23 @@ struct AnimationFrameMap {
 }
 
 #[derive(Clone, Copy)]
-struct DirectionalAnimationFrameMap {
+struct Facing4AnimationFrameMap {
     up: AnimationFrameMap,
     down: AnimationFrameMap,
     left: AnimationFrameMap,
     right: AnimationFrameMap,
+}
+
+#[derive(Clone, Copy)]
+struct Facing8FrameMap {
+    north: u32,
+    north_east: u32,
+    east: u32,
+    south_east: u32,
+    south: u32,
+    south_west: u32,
+    west: u32,
+    north_west: u32,
 }
 
 fn sprite_from_sheet(
@@ -250,18 +295,18 @@ fn sprite_from_sheet(
     }
 }
 
-fn register_directional_sheet_sprite_set(
-    sprites: &mut HashMap<DirectionalSpriteId, DirectionalSpriteSet>,
-    id: DirectionalSpriteId,
+fn register_facing4_sheet_sprite_set(
+    sprites: &mut HashMap<Facing4SpriteId, Facing4SpriteSet>,
+    id: Facing4SpriteId,
     texture: &Texture2D,
     frame_size: Vec2,
-    frames: DirectionalFrameMap,
+    frames: Facing4FrameMap,
     draw_size: Vec2,
     anchor: Vec2,
 ) {
     sprites.insert(
         id,
-        DirectionalSpriteSet {
+        Facing4SpriteSet {
             up: sprite_from_sheet(texture.clone(), frame_size, frames.up, draw_size, anchor),
             down: sprite_from_sheet(texture.clone(), frame_size, frames.down, draw_size, anchor),
             left: sprite_from_sheet(texture.clone(), frame_size, frames.left, draw_size, anchor),
@@ -288,18 +333,68 @@ fn animated_clip_from_sheet(
     }
 }
 
-fn register_directional_animated_sheet_sprite_set(
-    sprites: &mut HashMap<DirectionalSpriteId, DirectionalAnimatedSpriteSet>,
-    id: DirectionalSpriteId,
+fn register_facing8_sheet_sprite_set(
+    sprites: &mut HashMap<Facing8SpriteId, Facing8SpriteSet>,
+    id: Facing8SpriteId,
     texture: &Texture2D,
     frame_size: Vec2,
-    frames: DirectionalAnimationFrameMap,
+    frames: Facing8FrameMap,
+    draw_size: Vec2,
+    anchor: Vec2,
+) {
+    // Keep 8-way frame order centralized here so additional turret variants can
+    // register their sheets without duplicating frame indexing logic in render code.
+    sprites.insert(
+        id,
+        Facing8SpriteSet {
+            north: sprite_from_sheet(texture.clone(), frame_size, frames.north, draw_size, anchor),
+            north_east: sprite_from_sheet(
+                texture.clone(),
+                frame_size,
+                frames.north_east,
+                draw_size,
+                anchor,
+            ),
+            east: sprite_from_sheet(texture.clone(), frame_size, frames.east, draw_size, anchor),
+            south_east: sprite_from_sheet(
+                texture.clone(),
+                frame_size,
+                frames.south_east,
+                draw_size,
+                anchor,
+            ),
+            south: sprite_from_sheet(texture.clone(), frame_size, frames.south, draw_size, anchor),
+            south_west: sprite_from_sheet(
+                texture.clone(),
+                frame_size,
+                frames.south_west,
+                draw_size,
+                anchor,
+            ),
+            west: sprite_from_sheet(texture.clone(), frame_size, frames.west, draw_size, anchor),
+            north_west: sprite_from_sheet(
+                texture.clone(),
+                frame_size,
+                frames.north_west,
+                draw_size,
+                anchor,
+            ),
+        },
+    );
+}
+
+fn register_animated_facing4_sheet_sprite_set(
+    sprites: &mut HashMap<Facing4SpriteId, AnimatedFacing4SpriteSet>,
+    id: Facing4SpriteId,
+    texture: &Texture2D,
+    frame_size: Vec2,
+    frames: Facing4AnimationFrameMap,
     draw_size: Vec2,
     anchor: Vec2,
 ) {
     sprites.insert(
         id,
-        DirectionalAnimatedSpriteSet {
+        AnimatedFacing4SpriteSet {
             up: animated_clip_from_sheet(texture.clone(), frame_size, frames.up, draw_size, anchor),
             down: animated_clip_from_sheet(
                 texture.clone(),
