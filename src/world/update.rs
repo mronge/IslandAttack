@@ -1,5 +1,6 @@
 use crate::constants::{
     BULLET_SPEED, JEEP_ACCEL, JEEP_BRAKE, PLAYER_BULLET_DAMAGE, PLAYER_FIRE_COOLDOWN,
+    SOLDIER_ALERT_RANGE,
 };
 use crate::entities::{Bullet, BulletOwner, Direction, Enemy, EnemyAnimState, EnemyKind};
 use crate::input::PlayerCommand;
@@ -158,6 +159,13 @@ impl World {
             let distance = distance_sq.sqrt();
             let step_dir = to_player / distance;
             enemy.dir = Direction::from_vec(step_dir);
+            let can_see_player_for_pursuit = can_enemy_pursue_player(
+                &self.map,
+                enemy.kind,
+                enemy.pos,
+                self.player.pos,
+                distance,
+            );
             let can_shoot_from_here = distance <= enemy.kind.fire_range()
                 && self.map.has_line_of_sight(enemy.pos, self.player.pos);
 
@@ -188,6 +196,11 @@ impl World {
             }
 
             if enemy.kind.is_stationary() {
+                enemy.set_animation_state(EnemyAnimState::Idle);
+                continue;
+            }
+
+            if !can_see_player_for_pursuit {
                 enemy.set_animation_state(EnemyAnimState::Idle);
                 continue;
             }
@@ -230,6 +243,23 @@ fn move_towards_vec(current: Vec2, target: Vec2, max_delta: f32) -> Vec2 {
         target
     } else {
         current + delta / distance * max_delta
+    }
+}
+
+fn can_enemy_pursue_player(
+    map: &ImportedMap,
+    kind: EnemyKind,
+    enemy_pos: Vec2,
+    player_pos: Vec2,
+    distance: f32,
+) -> bool {
+    match kind {
+        // Soldiers stay dormant until the jeep is close enough to plausibly be
+        // on their half-screen "view" and they have line of sight.
+        EnemyKind::Soldier => {
+            distance <= SOLDIER_ALERT_RANGE && map.has_line_of_sight(enemy_pos, player_pos)
+        }
+        EnemyKind::Turret => true,
     }
 }
 
@@ -337,6 +367,28 @@ mod tests {
         assert_eq!(EnemyKind::Turret.max_per_tile(), 1);
         assert!(EnemyKind::Turret.is_stationary());
         assert!(EnemyKind::Turret.bullet_damage() > EnemyKind::Soldier.bullet_damage());
+    }
+
+    #[test]
+    fn soldier_pursuit_requires_alert_range() {
+        let map = ImportedMap::load();
+        let enemy_pos = vec2(64.0, 64.0);
+        let player_pos = enemy_pos + vec2(SOLDIER_ALERT_RANGE + 1.0, 0.0);
+
+        assert!(!can_enemy_pursue_player(
+            &map,
+            EnemyKind::Soldier,
+            enemy_pos,
+            player_pos,
+            SOLDIER_ALERT_RANGE + 1.0,
+        ));
+        assert!(can_enemy_pursue_player(
+            &map,
+            EnemyKind::Turret,
+            enemy_pos,
+            player_pos,
+            SOLDIER_ALERT_RANGE + 1.0,
+        ));
     }
 
     #[test]

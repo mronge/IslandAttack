@@ -1,6 +1,7 @@
 pub const WINDOW_TITLE: &str = "Tiger Prototype";
 pub const VIEW_WIDTH: f32 = 640.0;
 pub const VIEW_HEIGHT: f32 = 352.0;
+pub const SOLDIER_ALERT_RANGE: f32 = VIEW_WIDTH * 0.5;
 pub const FIXED_DT: f32 = 1.0 / 60.0;
 pub const MAP_PATH: &str = "sprites/map.json";
 pub const MAP_SPRITESHEET_PATH: &str = "sprites/map.png";
