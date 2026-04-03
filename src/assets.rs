@@ -1,4 +1,4 @@
-use crate::entities::{EnemyAnimState, Facing4, Facing8};
+use crate::entities::{ActorAnimState, Facing4, Facing8};
 use macroquad::prelude::*;
 use std::collections::HashMap;
 
@@ -59,7 +59,7 @@ struct Facing8SpriteSet {
 struct AnimatedSpriteClip {
     idle: SpriteAsset,
     walk: Vec<SpriteAsset>,
-    shoot: SpriteAsset,
+    shoot: Option<SpriteAsset>,
 }
 
 #[derive(Clone)]
@@ -144,22 +144,22 @@ impl Assets {
             Facing4AnimationFrameMap {
                 up: AnimationFrameMap {
                     idle: 12,
-                    shoot: 13,
+                    shoot: Some(13),
                     walk: &[14, 15],
                 },
                 down: AnimationFrameMap {
                     idle: 0,
-                    shoot: 1,
+                    shoot: Some(1),
                     walk: &[2, 3],
                 },
                 left: AnimationFrameMap {
                     idle: 4,
-                    shoot: 5,
+                    shoot: Some(5),
                     walk: &[6, 7],
                 },
                 right: AnimationFrameMap {
                     idle: 8,
-                    shoot: 9,
+                    shoot: Some(9),
                     walk: &[10, 11],
                 },
             },
@@ -224,7 +224,7 @@ impl Assets {
         &self,
         id: Facing4SpriteId,
         facing: Facing4,
-        state: EnemyAnimState,
+        state: ActorAnimState,
         frame_index: usize,
     ) -> &SpriteAsset {
         let set = self
@@ -239,9 +239,11 @@ impl Assets {
         };
 
         match state {
-            EnemyAnimState::Idle => &clip.idle,
-            EnemyAnimState::Shoot => &clip.shoot,
-            EnemyAnimState::Walk => &clip.walk[frame_index % clip.walk.len()],
+            ActorAnimState::Idle => &clip.idle,
+            // Some actors, like the POW, have no dedicated shoot frame. Keep
+            // a single 4-way animation path by falling back to idle.
+            ActorAnimState::Shoot => clip.shoot.as_ref().unwrap_or(&clip.idle),
+            ActorAnimState::Walk => &clip.walk[frame_index % clip.walk.len()],
         }
     }
 
@@ -281,7 +283,7 @@ struct Facing4FrameMap {
 struct AnimationFrameMap {
     idle: u32,
     walk: &'static [u32],
-    shoot: u32,
+    shoot: Option<u32>,
 }
 
 #[derive(Clone, Copy)]
@@ -361,7 +363,9 @@ fn animated_clip_from_sheet(
             .iter()
             .map(|frame| sprite_from_sheet(texture.clone(), frame_size, *frame, draw_size, anchor))
             .collect(),
-        shoot: sprite_from_sheet(texture, frame_size, frames.shoot, draw_size, anchor),
+        shoot: frames
+            .shoot
+            .map(|frame| sprite_from_sheet(texture, frame_size, frame, draw_size, anchor)),
     }
 }
 

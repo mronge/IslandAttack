@@ -2,7 +2,7 @@ use crate::constants::{
     BULLET_SPEED, JEEP_ACCEL, JEEP_BRAKE, PLAYER_BULLET_DAMAGE, PLAYER_FIRE_COOLDOWN,
     SOLDIER_ALERT_RANGE,
 };
-use crate::entities::{Bullet, BulletOwner, Direction, Enemy, EnemyAnimState, EnemyKind};
+use crate::entities::{ActorAnimState, Bullet, BulletOwner, Direction, Enemy, EnemyKind};
 use crate::input::PlayerCommand;
 use crate::world::{ImportedMap, World, rect_from_center};
 use macroquad::prelude::*;
@@ -153,7 +153,7 @@ impl World {
             let to_player = self.player.pos - enemy.pos;
             let distance_sq = to_player.length_squared();
             if distance_sq <= 1.0 {
-                enemy.set_animation_state(EnemyAnimState::Idle);
+                enemy.set_animation_state(ActorAnimState::Idle);
                 continue;
             }
 
@@ -171,14 +171,14 @@ impl World {
                 && self.map.has_line_of_sight(enemy.pos, self.player.pos);
 
             if enemy.shoot_timer > 0.0 {
-                enemy.set_animation_state(EnemyAnimState::Shoot);
+                enemy.set_animation_state(ActorAnimState::Shoot);
                 continue;
             }
 
             if can_shoot_from_here {
-                enemy.set_animation_state(EnemyAnimState::Idle);
+                enemy.set_animation_state(ActorAnimState::Idle);
                 if enemy.fire_cooldown <= 0.0 {
-                    enemy.set_animation_state(EnemyAnimState::Shoot);
+                    enemy.set_animation_state(ActorAnimState::Shoot);
                     enemy.shoot_timer = enemy.kind.shoot_duration();
 
                     let muzzle = enemy.pos + step_dir * (enemy.size().x * 0.75);
@@ -197,12 +197,12 @@ impl World {
             }
 
             if enemy.kind.is_stationary() {
-                enemy.set_animation_state(EnemyAnimState::Idle);
+                enemy.set_animation_state(ActorAnimState::Idle);
                 continue;
             }
 
             if !can_see_player_for_pursuit {
-                enemy.set_animation_state(EnemyAnimState::Idle);
+                enemy.set_animation_state(ActorAnimState::Idle);
                 continue;
             }
 
@@ -222,10 +222,10 @@ impl World {
             }
 
             if enemy.pos.distance_squared(start_pos) > 0.01 {
-                enemy.set_animation_state(EnemyAnimState::Walk);
+                enemy.set_animation_state(ActorAnimState::Walk);
                 enemy.tick_animation(dt);
             } else {
-                enemy.set_animation_state(EnemyAnimState::Idle);
+                enemy.set_animation_state(ActorAnimState::Idle);
             }
         }
 

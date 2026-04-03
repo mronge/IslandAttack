@@ -105,7 +105,7 @@ impl EnemyKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EnemyAnimState {
+pub enum ActorAnimState {
     Idle,
     Walk,
     Shoot,
@@ -122,7 +122,7 @@ pub struct Enemy {
     pub speed: f32,
     pub fire_cooldown: f32,
     pub shoot_timer: f32,
-    pub animation_state: EnemyAnimState,
+    pub animation_state: ActorAnimState,
     pub animation_timer: f32,
 }
 
@@ -142,7 +142,7 @@ impl Enemy {
             speed: kind.speed(),
             fire_cooldown: kind.fire_cooldown() * 0.5,
             shoot_timer: 0.0,
-            animation_state: EnemyAnimState::Idle,
+            animation_state: ActorAnimState::Idle,
             animation_timer: 0.0,
         }
     }
@@ -172,10 +172,10 @@ impl Enemy {
         self.hp = 0;
         self.shoot_timer = 0.0;
         self.fire_cooldown = 0.0;
-        self.set_animation_state(EnemyAnimState::Idle);
+        self.set_animation_state(ActorAnimState::Idle);
     }
 
-    pub fn set_animation_state(&mut self, state: EnemyAnimState) {
+    pub fn set_animation_state(&mut self, state: ActorAnimState) {
         if self.animation_state != state {
             self.animation_state = state;
             self.animation_timer = 0.0;
