@@ -148,6 +148,9 @@ fn draw_barracks(assets: &Assets, world: &World, top_left: Vec2) {
             )
         };
         draw_sprite_centered_sized(sprite, pos, size, WHITE);
+        if !barracks.is_destroyed() {
+            draw_barracks_help_text(pos, barracks.pos);
+        }
     }
 }
 
@@ -321,6 +324,45 @@ fn draw_pow(assets: &Assets, pow: &Pow, pos: Vec2, size: Vec2) {
         pos,
         size,
         WHITE,
+    );
+}
+
+fn draw_barracks_help_text(screen_pos: Vec2, world_pos: Vec2) {
+    let pulse =
+        (((get_time() as f32) * 2.4) + world_pos.x * 0.02 + world_pos.y * 0.015).sin() * 0.5 + 0.5;
+    let alpha = pulse.powf(2.2);
+    if alpha < 0.14 {
+        return;
+    }
+
+    let text = "HELP";
+    let font_size = 16;
+    let metrics = measure_text(text, None, font_size, 1.0);
+    let label_center = screen_pos - vec2(0.0, 4.0);
+    let text_pos = vec2(
+        label_center.x - metrics.width * 0.5,
+        label_center.y + metrics.height * 0.35,
+    );
+
+    draw_text_ex(
+        text,
+        text_pos.x + 1.0,
+        text_pos.y + 1.0,
+        TextParams {
+            font_size,
+            color: Color::new(0.0, 0.0, 0.0, alpha * 0.55),
+            ..Default::default()
+        },
+    );
+    draw_text_ex(
+        text,
+        text_pos.x,
+        text_pos.y,
+        TextParams {
+            font_size,
+            color: Color::new(1.0, 1.0, 1.0, alpha),
+            ..Default::default()
+        },
     );
 }
 
