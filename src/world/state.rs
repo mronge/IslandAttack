@@ -66,6 +66,7 @@ impl World {
 
     pub fn reset_player(&mut self) {
         self.player = Jeep::new(self.player_spawn);
+        self.rescued_pows = 0;
     }
 
     pub fn snapshot_positions(&mut self) {
@@ -122,5 +123,19 @@ mod tests {
 
         assert_eq!(positions.len(), 2);
         assert!(positions[0].distance(positions[1]) >= spawn.kind.size().x);
+    }
+
+    #[test]
+    fn player_reset_clears_rescued_count_but_keeps_world_state() {
+        let mut world = World::load();
+        world.rescued_pows = 3;
+        let barracks_before = world.barracks.len();
+        world.pows.push(Pow::new(vec2(32.0, 32.0), vec2(1.0, 0.0)));
+
+        world.reset_player();
+
+        assert_eq!(world.rescued_pows, 0);
+        assert_eq!(world.barracks.len(), barracks_before);
+        assert_eq!(world.pows.len(), 1);
     }
 }

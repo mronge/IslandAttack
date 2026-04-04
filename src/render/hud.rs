@@ -15,7 +15,7 @@ pub fn draw(world: &World, origin: Vec2, dest: Vec2, scale: f32) {
 
 fn draw_top_bar(world: &World, origin: Vec2, scale: f32) {
     let panel_pos = origin + vec2(10.0, 10.0) * scale;
-    let panel_size = vec2(144.0, 24.0) * scale;
+    let panel_size = vec2(179.2, 24.0) * scale;
     draw_rectangle(
         panel_pos.x,
         panel_pos.y,
@@ -84,6 +84,18 @@ fn draw_top_bar(world: &World, origin: Vec2, scale: f32) {
         font_size,
         WHITE,
     );
+
+    let pow_label = format!("POW {}", world.rescued_pows);
+    let pow_font_size = (11.0 * scale).max(1.0);
+    let pow_pos = panel_pos + vec2(138.0, 15.5) * scale;
+    draw_text(
+        &pow_label,
+        pow_pos.x + 1.0 * scale,
+        pow_pos.y + 1.0 * scale,
+        pow_font_size,
+        Color::new(0.0, 0.0, 0.0, 0.45),
+    );
+    draw_text(&pow_label, pow_pos.x, pow_pos.y, pow_font_size, WHITE);
 }
 
 fn draw_heart(center: Vec2, size: f32, color: Color) {
