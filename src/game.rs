@@ -2,7 +2,8 @@ use crate::assets::Assets;
 use crate::constants::FIXED_DT;
 use crate::input::gather_player_command;
 use crate::render::{Renderer, camera};
-use crate::world::World;
+use crate::world::{MissionResult, World};
+use macroquad::audio::{PlaySoundParams, play_sound, stop_sound};
 use macroquad::prelude::*;
 
 pub struct Game {
@@ -13,11 +14,13 @@ pub struct Game {
     pub play_camera_center: Vec2,
     pub accumulator: f32,
     pub show_collision_boxes: bool,
+    mission_was_complete: bool,
 }
 
 impl Game {
     pub fn new(assets: Assets) -> Self {
         let world = World::load();
+        let mission_was_complete = world.mission_is_complete();
         let play_camera_center = camera::initial_play_camera_center(&world);
         Self {
             assets,
@@ -27,6 +30,7 @@ impl Game {
             play_camera_center,
             accumulator: 0.0,
             show_collision_boxes: false,
+            mission_was_complete,
         }
     }
 
@@ -57,6 +61,23 @@ impl Game {
             self.play_camera_center =
                 camera::update_play_camera_center(self.play_camera_center, &self.world);
             self.accumulator -= FIXED_DT;
+        }
+
+        if !self.mission_was_complete && self.world.mission_is_complete() {
+            self.mission_was_complete = true;
+            stop_sound(self.assets.theme_music());
+            let music = match self.world.mission_result() {
+                Some(MissionResult::Success) => self.assets.success_music(),
+                Some(MissionResult::Failure) => self.assets.failure_music(),
+                None => unreachable!(),
+            };
+            play_sound(
+                music,
+                PlaySoundParams {
+                    looped: false,
+                    volume: 0.6,
+                },
+            );
         }
     }
 
