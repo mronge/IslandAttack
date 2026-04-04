@@ -12,6 +12,10 @@ use std::collections::HashMap;
 
 impl World {
     pub fn update(&mut self, command: PlayerCommand, dt: f32) {
+        if self.mission_is_complete() {
+            return;
+        }
+
         self.snapshot_positions();
         self.player.fire_cooldown = (self.player.fire_cooldown - dt).max(0.0);
         self.update_player(command, dt);
@@ -169,7 +173,7 @@ impl World {
             self.player.hp = (self.player.hp - player_hits).max(0);
             if self.player.hp <= 0 {
                 survivors.clear();
-                self.reset_player();
+                self.handle_player_death();
             }
         }
 
@@ -294,6 +298,8 @@ impl World {
     }
 
     fn update_pows(&mut self, dt: f32) {
+        let mut boarded_this_tick = 0usize;
+
         for pow in &mut self.pows {
             if pow.boarded {
                 continue;
@@ -344,6 +350,7 @@ impl World {
             {
                 pow.boarded = true;
                 self.rescued_pows += 1;
+                boarded_this_tick += 1;
                 continue;
             }
 
@@ -353,6 +360,10 @@ impl World {
             } else {
                 pow.set_animation_state(ActorAnimState::Idle);
             }
+        }
+
+        if boarded_this_tick > 0 {
+            self.resolve_mission_if_complete();
         }
     }
 

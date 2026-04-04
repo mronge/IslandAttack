@@ -35,14 +35,20 @@ impl Game {
             self.show_collision_boxes = !self.show_collision_boxes;
         }
 
-        if is_key_pressed(KeyCode::R) {
+        let mission_active = !self.world.mission_is_complete();
+
+        if mission_active && is_key_pressed(KeyCode::R) {
             self.world.reset_player();
             self.play_camera_center = camera::initial_play_camera_center(&self.world);
             self.prev_play_camera_center = self.play_camera_center;
             self.accumulator = 0.0;
         }
 
-        let live_command = gather_player_command();
+        let live_command = if mission_active {
+            gather_player_command()
+        } else {
+            Default::default()
+        };
         self.accumulator += frame_dt;
 
         while self.accumulator >= FIXED_DT {

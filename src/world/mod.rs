@@ -5,4 +5,4 @@ mod update;
 
 pub use collision::rect_from_center;
 pub use map::ImportedMap;
-pub use state::World;
+pub use state::{MissionResult, World};

@@ -2,6 +2,12 @@ use crate::entities::{Barracks, Bullet, Enemy, EnemyKind, Jeep, Pow};
 use crate::world::{ImportedMap, rect_from_center};
 use macroquad::prelude::*;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MissionResult {
+    Success,
+    Failure,
+}
+
 pub struct World {
     pub map: ImportedMap,
     pub player: Jeep,
@@ -10,7 +16,10 @@ pub struct World {
     pub pows: Vec<Pow>,
     pub bullets: Vec<Bullet>,
     pub rescued_pows: usize,
+    pub total_pows: usize,
+    pub lost_pows: usize,
     pub player_spawn: Vec2,
+    mission_result: Option<MissionResult>,
 }
 
 impl World {
@@ -52,6 +61,9 @@ impl World {
             }
         }
 
+        let total_pows = barracks.len() * crate::constants::POWS_PER_BARRACKS;
+        let mission_result = (total_pows == 0).then_some(MissionResult::Success);
+
         Self {
             map,
             player: Jeep::new(player_spawn),
@@ -60,13 +72,22 @@ impl World {
             pows: Vec::new(),
             bullets: Vec::new(),
             rescued_pows: 0,
+            total_pows,
+            lost_pows: 0,
             player_spawn,
+            mission_result,
         }
     }
 
     pub fn reset_player(&mut self) {
-        self.player = Jeep::new(self.player_spawn);
-        self.rescued_pows = 0;
+        if self.mission_is_complete() {
+            return;
+        }
+
+        self.lose_rescued_pows();
+        if !self.mission_is_complete() {
+            self.reset_player_state();
+        }
     }
 
     pub fn snapshot_positions(&mut self) {
@@ -80,6 +101,56 @@ impl World {
         for bullet in &mut self.bullets {
             bullet.prev_pos = bullet.pos;
         }
+    }
+
+    pub fn mission_result(&self) -> Option<MissionResult> {
+        self.mission_result
+    }
+
+    pub fn mission_is_complete(&self) -> bool {
+        self.mission_result.is_some()
+    }
+
+    pub(crate) fn handle_player_death(&mut self) {
+        self.lose_rescued_pows();
+        if !self.mission_is_complete() {
+            self.reset_player_state();
+        } else {
+            self.player.vel = Vec2::ZERO;
+            self.player.fire_cooldown = 0.0;
+        }
+    }
+
+    pub(crate) fn resolve_mission_if_complete(&mut self) {
+        if self.mission_result.is_some() {
+            return;
+        }
+
+        if self.rescued_pows + self.lost_pows < self.total_pows {
+            return;
+        }
+
+        self.mission_result = Some(if self.lost_pows == 0 {
+            MissionResult::Success
+        } else {
+            MissionResult::Failure
+        });
+    }
+
+    fn lose_rescued_pows(&mut self) {
+        if self.rescued_pows == 0 {
+            return;
+        }
+
+        // POWs already inside the jeep are the only ones lost on a reset or
+        // death. Released POWs still in the world remain available to rescue.
+        self.lost_pows += self.rescued_pows;
+        self.rescued_pows = 0;
+        self.resolve_mission_if_complete();
+    }
+
+    fn reset_player_state(&mut self) {
+        self.player = Jeep::new(self.player_spawn);
     }
 }
 
@@ -135,7 +206,29 @@ mod tests {
         world.reset_player();
 
         assert_eq!(world.rescued_pows, 0);
+        assert_eq!(world.lost_pows, 3);
         assert_eq!(world.barracks.len(), barracks_before);
         assert_eq!(world.pows.len(), 1);
+    }
+
+    #[test]
+    fn mission_succeeds_only_when_every_pow_survives() {
+        let mut world = World::load();
+        world.rescued_pows = world.total_pows;
+
+        world.resolve_mission_if_complete();
+
+        assert_eq!(world.mission_result(), Some(MissionResult::Success));
+    }
+
+    #[test]
+    fn mission_fails_when_all_pows_are_accounted_for_but_some_were_lost() {
+        let mut world = World::load();
+        world.lost_pows = 2;
+        world.rescued_pows = world.total_pows.saturating_sub(2);
+
+        world.resolve_mission_if_complete();
+
+        assert_eq!(world.mission_result(), Some(MissionResult::Failure));
     }
 }

@@ -1,8 +1,9 @@
-use crate::world::World;
+use crate::world::{MissionResult, World};
 use macroquad::prelude::*;
 
 pub fn draw(world: &World, origin: Vec2, dest: Vec2, scale: f32, show_controls: bool) {
     draw_top_bar(world, origin, scale);
+    draw_mission_overlay(world, origin, dest, scale);
 
     if show_controls {
         draw_text(
@@ -98,6 +99,72 @@ fn draw_top_bar(world: &World, origin: Vec2, scale: f32) {
         Color::new(0.0, 0.0, 0.0, 0.45),
     );
     draw_text(&pow_label, pow_pos.x, pow_pos.y, pow_font_size, WHITE);
+}
+
+fn draw_mission_overlay(world: &World, origin: Vec2, dest: Vec2, scale: f32) {
+    let Some(result) = world.mission_result() else {
+        return;
+    };
+
+    let panel_size = vec2(256.0, 86.0) * scale;
+    let panel_pos = origin + (dest - panel_size) * 0.5;
+    draw_rectangle(
+        panel_pos.x,
+        panel_pos.y,
+        panel_size.x,
+        panel_size.y,
+        Color::new(0.03, 0.04, 0.06, 0.9),
+    );
+    draw_rectangle_lines(
+        panel_pos.x,
+        panel_pos.y,
+        panel_size.x,
+        panel_size.y,
+        2.0 * scale,
+        Color::new(1.0, 1.0, 1.0, 0.12),
+    );
+
+    let title = match result {
+        MissionResult::Success => "MISSION SUCCESS",
+        MissionResult::Failure => "MISSION FAILURE",
+    };
+    let progress = format!("{}/{}", world.rescued_pows, world.total_pows);
+
+    let title_font_size = (20.0 * scale).max(1.0);
+    let title_metrics = measure_text(title, None, title_font_size as u16, 1.0);
+    let title_pos = vec2(
+        panel_pos.x + panel_size.x * 0.5 - title_metrics.width * 0.5,
+        panel_pos.y + 33.0 * scale,
+    );
+    draw_text(
+        title,
+        title_pos.x + 1.0 * scale,
+        title_pos.y + 1.0 * scale,
+        title_font_size,
+        Color::new(0.0, 0.0, 0.0, 0.45),
+    );
+    draw_text(title, title_pos.x, title_pos.y, title_font_size, WHITE);
+
+    let progress_font_size = (15.0 * scale).max(1.0);
+    let progress_metrics = measure_text(&progress, None, progress_font_size as u16, 1.0);
+    let progress_pos = vec2(
+        panel_pos.x + panel_size.x * 0.5 - progress_metrics.width * 0.5,
+        panel_pos.y + 59.0 * scale,
+    );
+    draw_text(
+        &progress,
+        progress_pos.x + 1.0 * scale,
+        progress_pos.y + 1.0 * scale,
+        progress_font_size,
+        Color::new(0.0, 0.0, 0.0, 0.45),
+    );
+    draw_text(
+        &progress,
+        progress_pos.x,
+        progress_pos.y,
+        progress_font_size,
+        WHITE,
+    );
 }
 
 fn draw_heart(center: Vec2, size: f32, color: Color) {
