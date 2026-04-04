@@ -1,12 +1,15 @@
-use crate::entities::{Bullet, Enemy, EnemyKind, Jeep};
-use crate::world::ImportedMap;
+use crate::entities::{Barracks, Bullet, Enemy, EnemyKind, Jeep, Pow};
+use crate::world::{ImportedMap, rect_from_center};
 use macroquad::prelude::*;
 
 pub struct World {
     pub map: ImportedMap,
     pub player: Jeep,
     pub enemies: Vec<Enemy>,
+    pub barracks: Vec<Barracks>,
+    pub pows: Vec<Pow>,
     pub bullets: Vec<Bullet>,
+    pub rescued_pows: usize,
     pub player_spawn: Vec2,
 }
 
@@ -16,6 +19,19 @@ impl World {
         let probe = Jeep::new(Vec2::ZERO);
         let player_spawn = map.default_spawn_point_for(probe.size());
         let mut enemies = Vec::new();
+        let mut barracks = Vec::new();
+
+        for spawn in map.barracks_spawns() {
+            let center = barracks_center(&map, spawn.top_left);
+            let rect = rect_from_center(center, vec2(64.0, 64.0));
+            assert!(
+                !map.collides_rect(rect),
+                "barracks spawn at tile ({}, {}) collides with the map",
+                spawn.top_left.x,
+                spawn.top_left.y
+            );
+            barracks.push(Barracks::new(center));
+        }
 
         for spawn in map.enemy_spawns() {
             for pos in enemy_spawn_positions(&map, *spawn) {
@@ -40,7 +56,10 @@ impl World {
             map,
             player: Jeep::new(player_spawn),
             enemies,
+            barracks,
+            pows: Vec::new(),
             bullets: Vec::new(),
+            rescued_pows: 0,
             player_spawn,
         }
     }
@@ -54,10 +73,17 @@ impl World {
         for enemy in &mut self.enemies {
             enemy.prev_pos = enemy.pos;
         }
+        for pow in &mut self.pows {
+            pow.prev_pos = pow.pos;
+        }
         for bullet in &mut self.bullets {
             bullet.prev_pos = bullet.pos;
         }
     }
+}
+
+fn barracks_center(map: &ImportedMap, top_left: IVec2) -> Vec2 {
+    map.tile_center(top_left) + vec2(map.tile_size * 0.5, map.tile_size * 0.5)
 }
 
 fn enemy_spawn_positions(map: &ImportedMap, spawn: crate::world::map::EnemySpawn) -> Vec<Vec2> {

@@ -23,6 +23,7 @@ pub struct SpriteAsset {
 pub enum Facing4SpriteId {
     Jeep,
     Soldier,
+    Pow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -32,6 +33,8 @@ pub enum Facing8SpriteId {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StaticSpriteId {
+    Barracks,
+    BarracksDestroyed,
     TurretDestroyed,
 }
 
@@ -117,6 +120,33 @@ impl Assets {
                 )
             });
         turret_destroyed.set_filter(FilterMode::Nearest);
+        let barracks = load_texture(crate::constants::BARRACKS_SPRITE_PATH)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load barracks sprite: {}",
+                    crate::constants::BARRACKS_SPRITE_PATH
+                )
+            });
+        barracks.set_filter(FilterMode::Nearest);
+        let barracks_destroyed = load_texture(crate::constants::BARRACKS_DESTROYED_SPRITE_PATH)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load destroyed barracks sprite: {}",
+                    crate::constants::BARRACKS_DESTROYED_SPRITE_PATH
+                )
+            });
+        barracks_destroyed.set_filter(FilterMode::Nearest);
+        let pow_sheet = load_texture(crate::constants::POW_SPRITESHEET_PATH)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load pow spritesheet: {}",
+                    crate::constants::POW_SPRITESHEET_PATH
+                )
+            });
+        pow_sheet.set_filter(FilterMode::Nearest);
 
         let mut facing4_sprites = HashMap::new();
         let mut animated_facing4_sprites = HashMap::new();
@@ -166,6 +196,36 @@ impl Assets {
             vec2(32.0, 32.0),
             vec2(16.0, 16.0),
         );
+        register_animated_facing4_sheet_sprite_set(
+            &mut animated_facing4_sprites,
+            Facing4SpriteId::Pow,
+            &pow_sheet,
+            vec2(32.0, 32.0),
+            Facing4AnimationFrameMap {
+                up: AnimationFrameMap {
+                    idle: 9,
+                    shoot: None,
+                    walk: &[10, 11],
+                },
+                down: AnimationFrameMap {
+                    idle: 0,
+                    shoot: None,
+                    walk: &[1, 2],
+                },
+                left: AnimationFrameMap {
+                    idle: 3,
+                    shoot: None,
+                    walk: &[4, 5],
+                },
+                right: AnimationFrameMap {
+                    idle: 6,
+                    shoot: None,
+                    walk: &[7, 8],
+                },
+            },
+            vec2(32.0, 32.0),
+            vec2(16.0, 16.0),
+        );
         register_facing8_sheet_sprite_set(
             &mut facing8_sprites,
             Facing8SpriteId::Turret,
@@ -191,6 +251,24 @@ impl Assets {
                 source: None,
                 draw_size: vec2(32.0, 32.0),
                 anchor: vec2(16.0, 16.0),
+            },
+        );
+        static_sprites.insert(
+            StaticSpriteId::Barracks,
+            SpriteAsset {
+                texture: barracks,
+                source: None,
+                draw_size: vec2(64.0, 64.0),
+                anchor: vec2(32.0, 32.0),
+            },
+        );
+        static_sprites.insert(
+            StaticSpriteId::BarracksDestroyed,
+            SpriteAsset {
+                texture: barracks_destroyed,
+                source: None,
+                draw_size: vec2(64.0, 64.0),
+                anchor: vec2(32.0, 32.0),
             },
         );
 

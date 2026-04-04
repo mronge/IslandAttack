@@ -3,7 +3,7 @@ use crate::entities::EnemyKind;
 use image::ImageReader;
 use macroquad::prelude::{IVec2, Rect, Vec2, ivec2, vec2};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 
 #[derive(Clone, Debug)]
@@ -26,6 +26,7 @@ pub struct ImportedMap {
     pub tile_size: f32,
     pub layers: Vec<MapLayer>,
     enemy_spawns: Vec<EnemySpawn>,
+    barracks_spawns: Vec<BarracksSpawn>,
     preferred_spawn_tiles: Vec<bool>,
     collision_pixels: Vec<bool>,
 }
@@ -35,6 +36,11 @@ pub struct EnemySpawn {
     pub tile: IVec2,
     pub kind: EnemyKind,
     pub count: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BarracksSpawn {
+    pub top_left: IVec2,
 }
 
 #[derive(Deserialize)]
@@ -72,10 +78,15 @@ impl ImportedMap {
 
         let mut layers = Vec::new();
         let mut enemy_spawns = Vec::new();
+        let mut barracks_spawns = Vec::new();
 
         for layer in raw_map.layers {
             if is_enemy_spawn_layer(&layer.name) {
                 enemy_spawns.extend(layer.tiles.into_iter().map(enemy_spawn_from_raw_tile));
+                continue;
+            }
+            if is_barracks_layer(&layer.name) {
+                barracks_spawns.extend(barracks_spawns_from_raw_tiles(layer.tiles));
                 continue;
             }
 
@@ -136,6 +147,7 @@ impl ImportedMap {
             tile_size: f32::from(raw_map.tile_size),
             layers,
             enemy_spawns,
+            barracks_spawns,
             preferred_spawn_tiles,
             collision_pixels,
         }
@@ -320,6 +332,10 @@ impl ImportedMap {
     pub fn enemy_spawns(&self) -> &[EnemySpawn] {
         &self.enemy_spawns
     }
+
+    pub fn barracks_spawns(&self) -> &[BarracksSpawn] {
+        &self.barracks_spawns
+    }
 }
 
 fn tile_index(width: usize, height: usize, tile: IVec2) -> Option<usize> {
@@ -329,23 +345,83 @@ fn tile_index(width: usize, height: usize, tile: IVec2) -> Option<usize> {
 
 fn enemy_spawn_from_raw_tile(tile: RawTile) -> EnemySpawn {
     match tile.id.as_str() {
-        "0" => EnemySpawn {
+        "0" | "4" => EnemySpawn {
             tile: ivec2(tile.x, tile.y),
             kind: EnemyKind::Soldier,
             count: 1,
         },
-        "1" => EnemySpawn {
+        "1" | "5" => EnemySpawn {
             tile: ivec2(tile.x, tile.y),
             kind: EnemyKind::Soldier,
             count: 2,
         },
-        "2" => EnemySpawn {
+        "2" | "6" => EnemySpawn {
             tile: ivec2(tile.x, tile.y),
             kind: EnemyKind::Turret,
             count: 1,
         },
         other => panic!("unknown enemy spawn tile id: {other}"),
     }
+}
+
+fn barracks_spawns_from_raw_tiles(tiles: Vec<RawTile>) -> Vec<BarracksSpawn> {
+    let markers: HashMap<IVec2, String> = tiles
+        .into_iter()
+        .map(|tile| (ivec2(tile.x, tile.y), tile.id))
+        .collect();
+    let mut top_lefts = markers
+        .iter()
+        .filter_map(|(pos, id)| (id == "0").then_some(*pos))
+        .collect::<Vec<_>>();
+    let mut used = HashSet::new();
+    let mut spawns = Vec::new();
+
+    top_lefts.sort_by_key(|pos| (pos.y, pos.x));
+
+    for top_left in top_lefts {
+        let footprint = [
+            (top_left, "0"),
+            (top_left + ivec2(1, 0), "1"),
+            (top_left + ivec2(0, 1), "2"),
+            (top_left + ivec2(1, 1), "3"),
+        ];
+
+        for (pos, expected) in footprint {
+            match markers.get(&pos).map(String::as_str) {
+                Some(id) if id == expected => {
+                    used.insert(pos);
+                }
+                Some(id) => {
+                    panic!(
+                        "invalid barracks marker at ({}, {}): expected id {}, found {}",
+                        pos.x, pos.y, expected, id
+                    );
+                }
+                None => {
+                    panic!(
+                        "missing barracks marker at ({}, {}): expected id {}",
+                        pos.x, pos.y, expected
+                    );
+                }
+            }
+        }
+
+        spawns.push(BarracksSpawn { top_left });
+    }
+
+    if used.len() != markers.len() {
+        let stray = markers
+            .keys()
+            .find(|pos| !used.contains(pos))
+            .copied()
+            .expect("expected a stray barracks marker");
+        panic!(
+            "stray barracks marker at ({}, {}) is not part of a complete 2x2 footprint",
+            stray.x, stray.y
+        );
+    }
+
+    spawns
 }
 
 fn layer_name_matches(name: &str, needles: &[&str]) -> bool {
@@ -358,6 +434,10 @@ fn is_enemy_spawn_layer(name: &str) -> bool {
         name.trim().to_ascii_lowercase().as_str(),
         "enemy" | "enemies"
     )
+}
+
+fn is_barracks_layer(name: &str) -> bool {
+    matches!(name.trim().to_ascii_lowercase().as_str(), "barracks")
 }
 
 fn build_collision_pixels(
@@ -509,7 +589,7 @@ mod tests {
     fn parses_enemy_spawn_marker_ids() {
         assert_eq!(
             enemy_spawn_from_raw_tile(RawTile {
-                id: "0".to_owned(),
+                id: "4".to_owned(),
                 x: 1,
                 y: 2,
             }),
@@ -521,7 +601,7 @@ mod tests {
         );
         assert_eq!(
             enemy_spawn_from_raw_tile(RawTile {
-                id: "1".to_owned(),
+                id: "5".to_owned(),
                 x: 3,
                 y: 4,
             }),
@@ -533,7 +613,7 @@ mod tests {
         );
         assert_eq!(
             enemy_spawn_from_raw_tile(RawTile {
-                id: "2".to_owned(),
+                id: "6".to_owned(),
                 x: 5,
                 y: 6,
             }),
@@ -542,6 +622,15 @@ mod tests {
                 kind: EnemyKind::Turret,
                 count: 1,
             }
+        );
+        assert_eq!(
+            enemy_spawn_from_raw_tile(RawTile {
+                id: "1".to_owned(),
+                x: 7,
+                y: 8,
+            })
+            .count,
+            2
         );
     }
 
@@ -552,5 +641,45 @@ mod tests {
         assert!(is_enemy_spawn_layer(" enemies "));
         assert!(!is_enemy_spawn_layer("Land enemies"));
         assert!(!is_enemy_spawn_layer("Enemy markers"));
+    }
+
+    #[test]
+    fn parses_barracks_spawn_blocks() {
+        let spawns = barracks_spawns_from_raw_tiles(vec![
+            RawTile {
+                id: "0".to_owned(),
+                x: 10,
+                y: 11,
+            },
+            RawTile {
+                id: "1".to_owned(),
+                x: 11,
+                y: 11,
+            },
+            RawTile {
+                id: "2".to_owned(),
+                x: 10,
+                y: 12,
+            },
+            RawTile {
+                id: "3".to_owned(),
+                x: 11,
+                y: 12,
+            },
+        ]);
+
+        assert_eq!(
+            spawns,
+            vec![BarracksSpawn {
+                top_left: ivec2(10, 11)
+            }]
+        );
+    }
+
+    #[test]
+    fn recognizes_barracks_layer_name() {
+        assert!(is_barracks_layer("Barracks"));
+        assert!(is_barracks_layer(" barracks "));
+        assert!(!is_barracks_layer("Barracks markers"));
     }
 }

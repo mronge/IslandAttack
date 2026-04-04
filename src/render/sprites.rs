@@ -1,12 +1,14 @@
 use crate::assets::{Assets, Facing4SpriteId, Facing8SpriteId, SpriteAsset, StaticSpriteId};
 use crate::constants::{VIEW_HEIGHT, VIEW_WIDTH};
-use crate::entities::{BulletOwner, Enemy, EnemyKind, Facing4, Facing8};
+use crate::entities::{BulletOwner, Enemy, EnemyKind, Facing4, Facing8, Pow};
 use crate::world::{World, rect_from_center};
 use macroquad::prelude::*;
 
 pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     draw_imported_map(assets, world, top_left);
+    draw_barracks(assets, world, top_left);
     draw_enemies(assets, world, top_left, alpha);
+    draw_pows(assets, world, top_left, alpha);
     draw_bullets(world, top_left, alpha);
 
     let jeep_pos = world_to_screen(world.player.render_pos(alpha), top_left);
@@ -46,6 +48,24 @@ pub fn draw_collision_boxes(world: &World, top_left: Vec2, alpha: f32) {
             top_left,
             color_u8!(255, 120, 120, 70),
             color_u8!(255, 180, 180, 220),
+        );
+    }
+
+    for barracks in &world.barracks {
+        draw_collision_rect(
+            rect_from_center(barracks.pos, barracks.size()),
+            top_left,
+            color_u8!(255, 210, 120, 70),
+            color_u8!(255, 230, 160, 220),
+        );
+    }
+
+    for pow in &world.pows {
+        draw_collision_rect(
+            rect_from_center(pow.render_pos(alpha), pow.size()),
+            top_left,
+            color_u8!(140, 220, 255, 70),
+            color_u8!(190, 240, 255, 220),
         );
     }
 
@@ -101,6 +121,43 @@ fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
             pos,
             size,
         );
+    }
+}
+
+fn draw_barracks(assets: &Assets, world: &World, top_left: Vec2) {
+    for barracks in &world.barracks {
+        let pos = world_to_screen(barracks.pos, top_left);
+        let size = barracks.render_size();
+        draw_ellipse(
+            pos.x,
+            pos.y + size.y * 0.28,
+            size.x * 0.28,
+            size.y * 0.1,
+            0.0,
+            Color::new(0.0, 0.0, 0.0, 0.18),
+        );
+        let sprite = if barracks.is_destroyed() {
+            assets.static_sprite(StaticSpriteId::BarracksDestroyed)
+        } else {
+            assets.static_sprite(StaticSpriteId::Barracks)
+        };
+        draw_sprite_centered_sized(sprite, pos, size, WHITE);
+    }
+}
+
+fn draw_pows(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
+    for pow in &world.pows {
+        let pos = world_to_screen(pow.render_pos(alpha), top_left);
+        let size = pow.render_size();
+        draw_ellipse(
+            pos.x,
+            pos.y + size.y * 0.24,
+            size.x * 0.18,
+            size.y * 0.065,
+            0.0,
+            Color::new(0.0, 0.0, 0.0, 0.12),
+        );
+        draw_pow(assets, pow, pos, size);
     }
 }
 
@@ -242,4 +299,18 @@ fn draw_enemy(assets: &Assets, enemy: &Enemy, aim_delta: Vec2, pos: Vec2, size: 
             draw_sprite_centered_sized(sprite, pos, size, WHITE);
         }
     }
+}
+
+fn draw_pow(assets: &Assets, pow: &Pow, pos: Vec2, size: Vec2) {
+    draw_sprite_centered_sized(
+        assets.animated_facing4_sprite(
+            Facing4SpriteId::Pow,
+            Facing4::from_direction(pow.dir),
+            pow.animation_state,
+            pow.walk_frame_index(),
+        ),
+        pos,
+        size,
+        WHITE,
+    );
 }
