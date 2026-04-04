@@ -8,6 +8,7 @@ mod world;
 
 use assets::Assets;
 use game::Game;
+use macroquad::audio::{PlaySoundParams, play_sound};
 use macroquad::prelude::*;
 
 fn window_conf() -> Conf {
@@ -24,6 +25,13 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let assets = Assets::load().await;
+    play_sound(
+        assets.theme_music(),
+        PlaySoundParams {
+            looped: true,
+            volume: 0.6,
+        },
+    );
     let mut game = Game::new(assets);
 
     loop {

@@ -1,4 +1,5 @@
 use crate::entities::{ActorAnimState, Facing4, Facing8};
+use macroquad::audio::{Sound, load_sound};
 use macroquad::prelude::*;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -6,6 +7,7 @@ use std::path::{Path, PathBuf};
 #[derive(Clone)]
 pub struct Assets {
     atlas: Texture2D,
+    theme_music: Sound,
     facing4_sprites: HashMap<Facing4SpriteId, Facing4SpriteSet>,
     animated_facing4_sprites: HashMap<Facing4SpriteId, AnimatedFacing4SpriteSet>,
     facing8_sprites: HashMap<Facing8SpriteId, Facing8SpriteSet>,
@@ -85,6 +87,14 @@ impl Assets {
                 )
             });
         atlas.set_filter(FilterMode::Nearest);
+        let theme_music = load_sound(crate::constants::THEME_MUSIC_PATH)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load theme music: {}",
+                    crate::constants::THEME_MUSIC_PATH
+                )
+            });
         let jeep_sheet = load_texture(crate::constants::JEEP_SPRITESHEET_PATH)
             .await
             .unwrap_or_else(|_| {
@@ -248,6 +258,7 @@ impl Assets {
 
         Self {
             atlas,
+            theme_music,
             facing4_sprites,
             animated_facing4_sprites,
             facing8_sprites,
@@ -257,6 +268,10 @@ impl Assets {
 
     pub fn atlas(&self) -> &Texture2D {
         &self.atlas
+    }
+
+    pub fn theme_music(&self) -> &Sound {
+        &self.theme_music
     }
 
     pub fn facing4_sprite(&self, id: Facing4SpriteId, facing: Facing4) -> &SpriteAsset {

@@ -5,6 +5,9 @@ pub const SOLDIER_ALERT_RANGE: f32 = VIEW_WIDTH * 0.5;
 pub const FIXED_DT: f32 = 1.0 / 60.0;
 pub const MAP_PATH: &str = "sprites/map.json";
 pub const MAP_SPRITESHEET_PATH: &str = "sprites/spritesheet.png";
+// Convert source music with:
+// ffmpeg -y -i music/theme.mp3 -c:a libvorbis -q:a 5 music/theme.ogg
+pub const THEME_MUSIC_PATH: &str = "music/theme.ogg";
 pub const JEEP_SPRITESHEET_PATH: &str = "sprites/jeep.png";
 pub const SOLDIER_SPRITESHEET_PATH: &str = "sprites/soldier.png";
 pub const TURRET_SPRITESHEET_PATH: &str = "sprites/turret.png";
