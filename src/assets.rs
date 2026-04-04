@@ -1,6 +1,7 @@
 use crate::entities::{ActorAnimState, Facing4, Facing8};
 use macroquad::prelude::*;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
 pub struct Assets {
@@ -8,7 +9,7 @@ pub struct Assets {
     facing4_sprites: HashMap<Facing4SpriteId, Facing4SpriteSet>,
     animated_facing4_sprites: HashMap<Facing4SpriteId, AnimatedFacing4SpriteSet>,
     facing8_sprites: HashMap<Facing8SpriteId, Facing8SpriteSet>,
-    static_sprites: HashMap<StaticSpriteId, SpriteAsset>,
+    static_sprites: HashMap<StaticSpriteId, Vec<SpriteAsset>>,
 }
 
 #[derive(Clone)]
@@ -111,33 +112,6 @@ impl Assets {
                 )
             });
         turret_sheet.set_filter(FilterMode::Nearest);
-        let turret_destroyed = load_texture(crate::constants::TURRET_DESTROYED_SPRITE_PATH)
-            .await
-            .unwrap_or_else(|_| {
-                panic!(
-                    "failed to load destroyed turret sprite: {}",
-                    crate::constants::TURRET_DESTROYED_SPRITE_PATH
-                )
-            });
-        turret_destroyed.set_filter(FilterMode::Nearest);
-        let barracks = load_texture(crate::constants::BARRACKS_SPRITE_PATH)
-            .await
-            .unwrap_or_else(|_| {
-                panic!(
-                    "failed to load barracks sprite: {}",
-                    crate::constants::BARRACKS_SPRITE_PATH
-                )
-            });
-        barracks.set_filter(FilterMode::Nearest);
-        let barracks_destroyed = load_texture(crate::constants::BARRACKS_DESTROYED_SPRITE_PATH)
-            .await
-            .unwrap_or_else(|_| {
-                panic!(
-                    "failed to load destroyed barracks sprite: {}",
-                    crate::constants::BARRACKS_DESTROYED_SPRITE_PATH
-                )
-            });
-        barracks_destroyed.set_filter(FilterMode::Nearest);
         let pow_sheet = load_texture(crate::constants::POW_SPRITESHEET_PATH)
             .await
             .unwrap_or_else(|_| {
@@ -246,30 +220,30 @@ impl Assets {
         );
         static_sprites.insert(
             StaticSpriteId::TurretDestroyed,
-            SpriteAsset {
-                texture: turret_destroyed,
-                source: None,
-                draw_size: vec2(32.0, 32.0),
-                anchor: vec2(16.0, 16.0),
-            },
+            load_static_sprite_variants(
+                crate::constants::TURRET_DESTROYED_SPRITE_PATH,
+                vec2(32.0, 32.0),
+                vec2(16.0, 16.0),
+            )
+            .await,
         );
         static_sprites.insert(
             StaticSpriteId::Barracks,
-            SpriteAsset {
-                texture: barracks,
-                source: None,
-                draw_size: vec2(64.0, 64.0),
-                anchor: vec2(32.0, 32.0),
-            },
+            load_static_sprite_variants(
+                crate::constants::BARRACKS_SPRITE_PATH,
+                vec2(64.0, 64.0),
+                vec2(32.0, 32.0),
+            )
+            .await,
         );
         static_sprites.insert(
             StaticSpriteId::BarracksDestroyed,
-            SpriteAsset {
-                texture: barracks_destroyed,
-                source: None,
-                draw_size: vec2(64.0, 64.0),
-                anchor: vec2(32.0, 32.0),
-            },
+            load_static_sprite_variants(
+                crate::constants::BARRACKS_DESTROYED_SPRITE_PATH,
+                vec2(64.0, 64.0),
+                vec2(32.0, 32.0),
+            )
+            .await,
         );
 
         Self {
@@ -342,10 +316,12 @@ impl Assets {
         }
     }
 
-    pub fn static_sprite(&self, id: StaticSpriteId) -> &SpriteAsset {
-        self.static_sprites
+    pub fn static_sprite(&self, id: StaticSpriteId, variant_seed: u64) -> &SpriteAsset {
+        let variants = self
+            .static_sprites
             .get(&id)
-            .unwrap_or_else(|| panic!("missing static sprite: {id:?}"))
+            .unwrap_or_else(|| panic!("missing static sprite: {id:?}"));
+        &variants[(variant_seed as usize) % variants.len()]
     }
 }
 
@@ -533,4 +509,60 @@ fn register_animated_facing4_sheet_sprite_set(
             ),
         },
     );
+}
+
+async fn load_static_sprite_variants(
+    path: &str,
+    draw_size: Vec2,
+    anchor: Vec2,
+) -> Vec<SpriteAsset> {
+    let mut variants = Vec::new();
+    variants.push(load_static_sprite(path, draw_size, anchor).await);
+
+    for variant_path in numbered_variant_paths(path) {
+        if !variant_path.exists() {
+            break;
+        }
+
+        variants.push(
+            load_static_sprite(
+                variant_path.to_str().expect("invalid static sprite path"),
+                draw_size,
+                anchor,
+            )
+            .await,
+        );
+    }
+
+    variants
+}
+
+async fn load_static_sprite(path: &str, draw_size: Vec2, anchor: Vec2) -> SpriteAsset {
+    let texture = load_texture(path)
+        .await
+        .unwrap_or_else(|_| panic!("failed to load static sprite: {path}"));
+    texture.set_filter(FilterMode::Nearest);
+    SpriteAsset {
+        texture,
+        source: None,
+        draw_size,
+        anchor,
+    }
+}
+
+fn numbered_variant_paths(path: &str) -> impl Iterator<Item = PathBuf> + '_ {
+    let base = Path::new(path);
+    let stem = base
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or_else(|| panic!("invalid static sprite filename: {path}"))
+        .to_owned();
+    let ext = base
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_else(|| panic!("missing static sprite extension: {path}"))
+        .to_owned();
+    let parent = base.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
+
+    (1..).map(move |index| parent.join(format!("{stem}{index}.{ext}")))
 }

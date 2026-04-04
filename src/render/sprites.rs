@@ -137,9 +137,15 @@ fn draw_barracks(assets: &Assets, world: &World, top_left: Vec2) {
             Color::new(0.0, 0.0, 0.0, 0.18),
         );
         let sprite = if barracks.is_destroyed() {
-            assets.static_sprite(StaticSpriteId::BarracksDestroyed)
+            assets.static_sprite(
+                StaticSpriteId::BarracksDestroyed,
+                static_sprite_seed(barracks.pos, 1),
+            )
         } else {
-            assets.static_sprite(StaticSpriteId::Barracks)
+            assets.static_sprite(
+                StaticSpriteId::Barracks,
+                static_sprite_seed(barracks.pos, 0),
+            )
         };
         draw_sprite_centered_sized(sprite, pos, size, WHITE);
     }
@@ -292,7 +298,10 @@ fn draw_enemy(assets: &Assets, enemy: &Enemy, aim_delta: Vec2, pos: Vec2, size: 
         ),
         EnemyKind::Turret => {
             let sprite = if enemy.is_destroyed() {
-                assets.static_sprite(StaticSpriteId::TurretDestroyed)
+                assets.static_sprite(
+                    StaticSpriteId::TurretDestroyed,
+                    static_sprite_seed(enemy.pos, 2),
+                )
             } else {
                 assets.facing8_sprite(Facing8SpriteId::Turret, Facing8::from_vec(aim_delta))
             };
@@ -313,4 +322,10 @@ fn draw_pow(assets: &Assets, pow: &Pow, pos: Vec2, size: Vec2) {
         size,
         WHITE,
     );
+}
+
+fn static_sprite_seed(pos: Vec2, salt: u64) -> u64 {
+    let x = pos.x.round().to_bits() as u64;
+    let y = pos.y.round().to_bits() as u64;
+    x.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ y.wrapping_mul(0xC2B2_AE3D_27D4_EB4F) ^ salt
 }
