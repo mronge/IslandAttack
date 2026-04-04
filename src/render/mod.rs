@@ -66,6 +66,6 @@ impl Renderer {
             },
         );
 
-        hud::draw(world, origin, dest, scale);
+        hud::draw(world, origin, dest, scale, is_key_down(KeyCode::Tab));
     }
 }

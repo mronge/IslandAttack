@@ -1,16 +1,18 @@
 use crate::world::World;
 use macroquad::prelude::*;
 
-pub fn draw(world: &World, origin: Vec2, dest: Vec2, scale: f32) {
+pub fn draw(world: &World, origin: Vec2, dest: Vec2, scale: f32, show_controls: bool) {
     draw_top_bar(world, origin, scale);
 
-    draw_text(
-        "WASD / ARROWS MOVE   H HITBOXES   R RESET",
-        origin.x + 18.0 * scale,
-        origin.y + dest.y - 18.0 * scale,
-        24.0 * scale,
-        WHITE,
-    );
+    if show_controls {
+        draw_text(
+            "WASD / ARROWS MOVE   H HITBOXES   R RESET",
+            origin.x + 18.0 * scale,
+            origin.y + dest.y - 18.0 * scale,
+            24.0 * scale,
+            WHITE,
+        );
+    }
 }
 
 fn draw_top_bar(world: &World, origin: Vec2, scale: f32) {
