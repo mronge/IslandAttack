@@ -578,27 +578,42 @@ fn release_pows_from_barracks(
         return Vec::new();
     }
 
-    let mut pows = Vec::with_capacity(POWS_PER_BARRACKS);
-    let mut reserved_rects = Vec::with_capacity(POWS_PER_BARRACKS);
-    for escape_dir in [
+    let escape_dirs = [
         vec2(0.0, -1.0),
         vec2(-1.0, 0.0),
         vec2(1.0, 0.0),
         vec2(0.0, 1.0),
-    ] {
-        if let Some(spawn_pos) = find_pow_spawn_pos(
-            map,
-            barracks_list,
-            enemies,
-            existing_pows,
-            &reserved_rects,
-            barracks,
-            escape_dir,
-            player_pos,
-            player_size,
-        ) {
-            reserved_rects.push(rect_from_center(spawn_pos, vec2(POW_SIZE, POW_SIZE)));
-            pows.push(Pow::new(spawn_pos, escape_dir));
+    ];
+    let mut pows = Vec::with_capacity(POWS_PER_BARRACKS);
+    let mut reserved_rects = Vec::with_capacity(POWS_PER_BARRACKS);
+    for preferred_dir in 0..POWS_PER_BARRACKS {
+        let mut spawned = false;
+
+        // Prefer spreading POWs across the four sides first, but allow a
+        // second POW from an open side when another lane is blocked by walls
+        // or a neighboring barracks footprint.
+        for offset in 0..escape_dirs.len() {
+            let escape_dir = escape_dirs[(preferred_dir + offset) % escape_dirs.len()];
+            if let Some(spawn_pos) = find_pow_spawn_pos(
+                map,
+                barracks_list,
+                enemies,
+                existing_pows,
+                &reserved_rects,
+                barracks,
+                escape_dir,
+                player_pos,
+                player_size,
+            ) {
+                reserved_rects.push(rect_from_center(spawn_pos, vec2(POW_SIZE, POW_SIZE)));
+                pows.push(Pow::new(spawn_pos, escape_dir));
+                spawned = true;
+                break;
+            }
+        }
+
+        if !spawned {
+            break;
         }
     }
     barracks.mark_pows_released();
@@ -841,6 +856,40 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    #[test]
+    fn adjacent_barracks_still_release_four_pows() {
+        let map = ImportedMap::load();
+        let barracks_list: Vec<_> = map
+            .barracks_spawns()
+            .iter()
+            .map(|spawn| {
+                let center = map.tile_center(spawn.top_left)
+                    + vec2(map.tile_size * 0.5, map.tile_size * 0.5);
+                Barracks::new(center)
+            })
+            .collect();
+        let left_barracks_index = barracks_list
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, barracks)| barracks.pos.x as i32)
+            .map(|(index, _)| index)
+            .expect("expected at least one barracks spawn");
+        let mut source_barracks = barracks_list[left_barracks_index].clone();
+        source_barracks.destroy();
+
+        let pows = release_pows_from_barracks(
+            &map,
+            &barracks_list,
+            &[],
+            &[],
+            &mut source_barracks,
+            vec2(-999.0, -999.0),
+            vec2(32.0, 32.0),
+        );
+
+        assert_eq!(pows.len(), POWS_PER_BARRACKS);
     }
 
     #[test]
