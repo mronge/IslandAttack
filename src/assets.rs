@@ -1,4 +1,5 @@
 use crate::entities::{ActorAnimState, Facing4, Facing8};
+use crate::world::MissionResult;
 use macroquad::audio::{Sound, load_sound};
 use macroquad::prelude::*;
 use std::collections::HashMap;
@@ -7,10 +8,6 @@ use std::path::{Path, PathBuf};
 #[derive(Clone)]
 pub struct Assets {
     atlas: Texture2D,
-    splash_screen: Texture2D,
-    theme_music: Sound,
-    success_music: Sound,
-    failure_music: Sound,
     facing4_sprites: HashMap<Facing4SpriteId, Facing4SpriteSet>,
     animated_facing4_sprites: HashMap<Facing4SpriteId, AnimatedFacing4SpriteSet>,
     facing8_sprites: HashMap<Facing8SpriteId, Facing8SpriteSet>,
@@ -90,39 +87,6 @@ impl Assets {
                 )
             });
         atlas.set_filter(FilterMode::Nearest);
-        let splash_screen = load_texture(crate::constants::SPLASH_SCREEN_PATH)
-            .await
-            .unwrap_or_else(|_| {
-                panic!(
-                    "failed to load splash screen: {}",
-                    crate::constants::SPLASH_SCREEN_PATH
-                )
-            });
-        splash_screen.set_filter(FilterMode::Nearest);
-        let theme_music = load_sound(crate::constants::THEME_MUSIC_PATH)
-            .await
-            .unwrap_or_else(|_| {
-                panic!(
-                    "failed to load theme music: {}",
-                    crate::constants::THEME_MUSIC_PATH
-                )
-            });
-        let success_music = load_sound(crate::constants::SUCCESS_MUSIC_PATH)
-            .await
-            .unwrap_or_else(|_| {
-                panic!(
-                    "failed to load success music: {}",
-                    crate::constants::SUCCESS_MUSIC_PATH
-                )
-            });
-        let failure_music = load_sound(crate::constants::FAILURE_MUSIC_PATH)
-            .await
-            .unwrap_or_else(|_| {
-                panic!(
-                    "failed to load failure music: {}",
-                    crate::constants::FAILURE_MUSIC_PATH
-                )
-            });
         let jeep_sheet = load_texture(crate::constants::JEEP_SPRITESHEET_PATH)
             .await
             .unwrap_or_else(|_| {
@@ -286,10 +250,6 @@ impl Assets {
 
         Self {
             atlas,
-            splash_screen,
-            theme_music,
-            success_music,
-            failure_music,
             facing4_sprites,
             animated_facing4_sprites,
             facing8_sprites,
@@ -299,22 +259,6 @@ impl Assets {
 
     pub fn atlas(&self) -> &Texture2D {
         &self.atlas
-    }
-
-    pub fn splash_screen(&self) -> &Texture2D {
-        &self.splash_screen
-    }
-
-    pub fn theme_music(&self) -> &Sound {
-        &self.theme_music
-    }
-
-    pub fn success_music(&self) -> &Sound {
-        &self.success_music
-    }
-
-    pub fn failure_music(&self) -> &Sound {
-        &self.failure_music
     }
 
     pub fn facing4_sprite(&self, id: Facing4SpriteId, facing: Facing4) -> &SpriteAsset {
@@ -381,6 +325,41 @@ impl Assets {
             .unwrap_or_else(|| panic!("missing static sprite: {id:?}"));
         &variants[(variant_seed as usize) % variants.len()]
     }
+}
+
+pub async fn load_splash_screen() -> Texture2D {
+    let splash_screen = load_texture(crate::constants::SPLASH_SCREEN_PATH)
+        .await
+        .unwrap_or_else(|_| {
+            panic!(
+                "failed to load splash screen: {}",
+                crate::constants::SPLASH_SCREEN_PATH
+            )
+        });
+    splash_screen.set_filter(FilterMode::Nearest);
+    splash_screen
+}
+
+pub async fn load_theme_music() -> Sound {
+    load_sound(crate::constants::THEME_MUSIC_PATH)
+        .await
+        .unwrap_or_else(|_| {
+            panic!(
+                "failed to load theme music: {}",
+                crate::constants::THEME_MUSIC_PATH
+            )
+        })
+}
+
+pub async fn load_result_sound(result: MissionResult) -> Sound {
+    let path = match result {
+        MissionResult::Success => crate::constants::SUCCESS_MUSIC_PATH,
+        MissionResult::Failure => crate::constants::FAILURE_MUSIC_PATH,
+    };
+
+    load_sound(path)
+        .await
+        .unwrap_or_else(|_| panic!("failed to load result music: {path}"))
 }
 
 #[derive(Clone, Copy)]

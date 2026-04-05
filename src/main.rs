@@ -7,6 +7,7 @@ mod render;
 mod world;
 
 use assets::Assets;
+use assets::{load_result_sound, load_splash_screen, load_theme_music};
 use game::Game;
 use macroquad::audio::{PlaySoundParams, play_sound};
 use macroquad::prelude::*;
@@ -25,17 +26,30 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let skip_splash = std::env::args().any(|arg| arg == "--skip-splash");
-    let assets = Assets::load().await;
+    let splash_screen = load_splash_screen().await;
+    let theme_music = load_theme_music().await;
     play_sound(
-        assets.theme_music(),
+        &theme_music,
         PlaySoundParams {
             looped: true,
             volume: 0.6,
         },
     );
-    let mut game = Game::new(assets, skip_splash);
+    let mut game = Game::new(splash_screen, theme_music, skip_splash);
 
     loop {
+        if game.needs_runtime_load() {
+            let assets = Assets::load().await;
+            game.finish_loading(assets);
+            continue;
+        }
+
+        if let Some(result) = game.take_pending_result_sound() {
+            let sound = load_result_sound(result).await;
+            game.play_result_sound(sound);
+            continue;
+        }
+
         let frame_dt = get_frame_time().min(0.25);
         game.frame(frame_dt);
         game.draw();

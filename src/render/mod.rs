@@ -61,13 +61,13 @@ impl Renderer {
         hud::draw(world, origin, dest, scale, is_key_down(KeyCode::Tab));
     }
 
-    pub fn draw_splash(&mut self, assets: &Assets) {
+    pub fn draw_splash(&mut self, splash_screen: &Texture2D, loading: bool) {
         set_default_camera();
         clear_background(BLACK);
 
         let (origin, dest, scale) = presentation_layout();
         draw_texture_ex(
-            assets.splash_screen(),
+            splash_screen,
             origin.x,
             origin.y,
             WHITE,
@@ -77,12 +77,20 @@ impl Renderer {
             },
         );
 
-        let prompt = "Press space to begin";
+        let prompt = if loading {
+            "Loading..."
+        } else {
+            "Press space to begin"
+        };
         let font_size = (12.0 * scale).max(1.0);
         let measured = measure_text(prompt, None, font_size as u16, 1.0);
         let x = origin.x + dest.x * 0.5 - measured.width * 0.5;
         let y = origin.y + dest.y - 16.0 * scale;
-        let pulse = ((get_time() as f32 * 2.4).sin() * 0.5 + 0.5).powf(2.2);
+        let pulse = if loading {
+            1.0
+        } else {
+            ((get_time() as f32 * 2.4).sin() * 0.5 + 0.5).powf(2.2)
+        };
         if pulse < 0.14 {
             return;
         }
