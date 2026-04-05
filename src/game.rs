@@ -6,6 +6,12 @@ use crate::world::{MissionResult, World};
 use macroquad::audio::{PlaySoundParams, play_sound, stop_sound};
 use macroquad::prelude::*;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AppMode {
+    Splash,
+    Playing,
+}
+
 pub struct Game {
     pub assets: Assets,
     pub world: World,
@@ -15,10 +21,11 @@ pub struct Game {
     pub accumulator: f32,
     pub show_collision_boxes: bool,
     mission_was_complete: bool,
+    mode: AppMode,
 }
 
 impl Game {
-    pub fn new(assets: Assets) -> Self {
+    pub fn new(assets: Assets, skip_splash: bool) -> Self {
         let world = World::load();
         let mission_was_complete = world.mission_is_complete();
         let play_camera_center = camera::initial_play_camera_center(&world);
@@ -31,10 +38,23 @@ impl Game {
             accumulator: 0.0,
             show_collision_boxes: false,
             mission_was_complete,
+            mode: if skip_splash {
+                AppMode::Playing
+            } else {
+                AppMode::Splash
+            },
         }
     }
 
     pub fn frame(&mut self, frame_dt: f32) {
+        if self.mode == AppMode::Splash {
+            if is_key_pressed(KeyCode::Space) {
+                self.mode = AppMode::Playing;
+                self.accumulator = 0.0;
+            }
+            return;
+        }
+
         if is_key_pressed(KeyCode::H) {
             self.show_collision_boxes = !self.show_collision_boxes;
         }
@@ -82,6 +102,11 @@ impl Game {
     }
 
     pub fn draw(&mut self) {
+        if self.mode == AppMode::Splash {
+            self.renderer.draw_splash(&self.assets);
+            return;
+        }
+
         let alpha = (self.accumulator / FIXED_DT).clamp(0.0, 1.0);
         let interpolated_camera = self
             .prev_play_camera_center

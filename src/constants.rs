@@ -12,6 +12,7 @@ pub const MAP_SPRITESHEET_PATH: &str = "sprites/spritesheet.png";
 pub const THEME_MUSIC_PATH: &str = "music/theme.ogg";
 pub const SUCCESS_MUSIC_PATH: &str = "music/success.ogg";
 pub const FAILURE_MUSIC_PATH: &str = "music/failure.ogg";
+pub const SPLASH_SCREEN_PATH: &str = "sprites/splash.png";
 pub const JEEP_SPRITESHEET_PATH: &str = "sprites/jeep.png";
 pub const SOLDIER_SPRITESHEET_PATH: &str = "sprites/soldier.png";
 pub const TURRET_SPRITESHEET_PATH: &str = "sprites/turret.png";

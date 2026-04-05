@@ -44,15 +44,7 @@ impl Renderer {
         set_default_camera();
         clear_background(BLACK);
 
-        let scale = (screen_width() / VIEW_WIDTH)
-            .min(screen_height() / VIEW_HEIGHT)
-            .floor()
-            .max(1.0);
-        let dest = vec2(VIEW_WIDTH * scale, VIEW_HEIGHT * scale);
-        let origin = vec2(
-            (screen_width() - dest.x) * 0.5,
-            (screen_height() - dest.y) * 0.5,
-        );
+        let (origin, dest, scale) = presentation_layout();
 
         draw_texture_ex(
             &self.target.texture,
@@ -68,4 +60,52 @@ impl Renderer {
 
         hud::draw(world, origin, dest, scale, is_key_down(KeyCode::Tab));
     }
+
+    pub fn draw_splash(&mut self, assets: &Assets) {
+        set_default_camera();
+        clear_background(BLACK);
+
+        let (origin, dest, scale) = presentation_layout();
+        draw_texture_ex(
+            assets.splash_screen(),
+            origin.x,
+            origin.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(dest),
+                ..Default::default()
+            },
+        );
+
+        let prompt = "Press space to begin";
+        let font_size = (12.0 * scale).max(1.0);
+        let measured = measure_text(prompt, None, font_size as u16, 1.0);
+        let x = origin.x + dest.x * 0.5 - measured.width * 0.5;
+        let y = origin.y + dest.y - 16.0 * scale;
+        let pulse = ((get_time() as f32 * 2.4).sin() * 0.5 + 0.5).powf(2.2);
+        if pulse < 0.14 {
+            return;
+        }
+        draw_text(
+            prompt,
+            x + 1.0 * scale,
+            y + 1.0 * scale,
+            font_size,
+            Color::new(0.0, 0.0, 0.0, pulse * 0.55),
+        );
+        draw_text(prompt, x, y, font_size, Color::new(1.0, 1.0, 1.0, pulse));
+    }
+}
+
+fn presentation_layout() -> (Vec2, Vec2, f32) {
+    let scale = (screen_width() / VIEW_WIDTH)
+        .min(screen_height() / VIEW_HEIGHT)
+        .floor()
+        .max(1.0);
+    let dest = vec2(VIEW_WIDTH * scale, VIEW_HEIGHT * scale);
+    let origin = vec2(
+        (screen_width() - dest.x) * 0.5,
+        (screen_height() - dest.y) * 0.5,
+    );
+    (origin, dest, scale)
 }

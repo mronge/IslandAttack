@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 #[derive(Clone)]
 pub struct Assets {
     atlas: Texture2D,
+    splash_screen: Texture2D,
     theme_music: Sound,
     success_music: Sound,
     failure_music: Sound,
@@ -89,6 +90,15 @@ impl Assets {
                 )
             });
         atlas.set_filter(FilterMode::Nearest);
+        let splash_screen = load_texture(crate::constants::SPLASH_SCREEN_PATH)
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "failed to load splash screen: {}",
+                    crate::constants::SPLASH_SCREEN_PATH
+                )
+            });
+        splash_screen.set_filter(FilterMode::Nearest);
         let theme_music = load_sound(crate::constants::THEME_MUSIC_PATH)
             .await
             .unwrap_or_else(|_| {
@@ -276,6 +286,7 @@ impl Assets {
 
         Self {
             atlas,
+            splash_screen,
             theme_music,
             success_music,
             failure_music,
@@ -288,6 +299,10 @@ impl Assets {
 
     pub fn atlas(&self) -> &Texture2D {
         &self.atlas
+    }
+
+    pub fn splash_screen(&self) -> &Texture2D {
+        &self.splash_screen
     }
 
     pub fn theme_music(&self) -> &Sound {

@@ -24,6 +24,7 @@ fn window_conf() -> Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    let skip_splash = std::env::args().any(|arg| arg == "--skip-splash");
     let assets = Assets::load().await;
     play_sound(
         assets.theme_music(),
@@ -32,7 +33,7 @@ async fn main() {
             volume: 0.6,
         },
     );
-    let mut game = Game::new(assets);
+    let mut game = Game::new(assets, skip_splash);
 
     loop {
         let frame_dt = get_frame_time().min(0.25);
