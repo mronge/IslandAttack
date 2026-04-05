@@ -579,21 +579,19 @@ fn release_pows_from_barracks(
     }
 
     let escape_dirs = [
-        vec2(0.0, -1.0),
+        vec2(0.0, 1.0),
         vec2(-1.0, 0.0),
         vec2(1.0, 0.0),
-        vec2(0.0, 1.0),
+        vec2(0.0, -1.0),
     ];
     let mut pows = Vec::with_capacity(POWS_PER_BARRACKS);
     let mut reserved_rects = Vec::with_capacity(POWS_PER_BARRACKS);
-    for preferred_dir in 0..POWS_PER_BARRACKS {
+    for _ in 0..POWS_PER_BARRACKS {
         let mut spawned = false;
 
-        // Prefer spreading POWs across the four sides first, but allow a
-        // second POW from an open side when another lane is blocked by walls
-        // or a neighboring barracks footprint.
-        for offset in 0..escape_dirs.len() {
-            let escape_dir = escape_dirs[(preferred_dir + offset) % escape_dirs.len()];
+        // Barracks art faces downward, so let the front doorway area (+Y)
+        // fill first and only fall back to side or rear exits when needed.
+        for escape_dir in escape_dirs {
             if let Some(spawn_pos) = find_pow_spawn_pos(
                 map,
                 barracks_list,
@@ -731,6 +729,48 @@ mod tests {
         }
 
         panic!("expected at least one barracks tile with four open release slots");
+    }
+
+    fn barracks_tile_with_four_front_release_slots(map: &ImportedMap) -> IVec2 {
+        for y in 0..map.height as i32 {
+            for x in 0..map.width as i32 {
+                let tile = ivec2(x, y);
+                let center = map.tile_center(tile);
+                if map.collides_rect(rect_from_center(center, vec2(64.0, 64.0))) {
+                    continue;
+                }
+
+                let mut barracks = Barracks::new(center);
+                barracks.destroy();
+                let mut reserved_rects = Vec::with_capacity(POWS_PER_BARRACKS);
+                let mut count = 0;
+
+                for _ in 0..POWS_PER_BARRACKS {
+                    let Some(spawn_pos) = find_pow_spawn_pos(
+                        map,
+                        &[],
+                        &[],
+                        &[],
+                        &reserved_rects,
+                        &barracks,
+                        vec2(0.0, 1.0),
+                        vec2(-999.0, -999.0),
+                        vec2(32.0, 32.0),
+                    ) else {
+                        break;
+                    };
+
+                    reserved_rects.push(rect_from_center(spawn_pos, vec2(POW_SIZE, POW_SIZE)));
+                    count += 1;
+                }
+
+                if count == POWS_PER_BARRACKS {
+                    return tile;
+                }
+            }
+        }
+
+        panic!("expected at least one barracks tile with four open front release slots");
     }
 
     #[test]
@@ -890,6 +930,29 @@ mod tests {
         );
 
         assert_eq!(pows.len(), POWS_PER_BARRACKS);
+    }
+
+    #[test]
+    fn released_pows_use_front_of_barracks_when_it_has_space() {
+        let map = ImportedMap::load();
+        let tile = barracks_tile_with_four_front_release_slots(&map);
+        let center = map.tile_center(tile);
+        let mut barracks = Barracks::new(center);
+        barracks.destroy();
+
+        let pows = release_pows_from_barracks(
+            &map,
+            &[],
+            &[],
+            &[],
+            &mut barracks,
+            vec2(-999.0, -999.0),
+            vec2(32.0, 32.0),
+        );
+
+        assert_eq!(pows.len(), POWS_PER_BARRACKS);
+        assert!(pows.iter().all(|pow| pow.escape_dir == vec2(0.0, 1.0)));
+        assert!(pows.iter().all(|pow| pow.pos.y > center.y));
     }
 
     #[test]
