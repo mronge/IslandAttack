@@ -290,9 +290,9 @@ impl ImportedMap {
     }
 
     pub fn default_spawn_point_for(&self, size: Vec2) -> Vec2 {
-        let target = vec2(self.width as f32 * 0.5, self.height as f32 * 0.5);
         let mut best_tile = None;
-        let mut best_distance = f32::MAX;
+        let mut best_x = i32::MAX;
+        let mut best_vertical_distance = f32::MAX;
 
         for y in 0..self.height as i32 {
             for x in 0..self.width as i32 {
@@ -315,10 +315,10 @@ impl ImportedMap {
                     continue;
                 }
 
-                let tile_center = vec2(x as f32 + 0.5, y as f32 + 0.5);
-                let distance = tile_center.distance_squared(target);
-                if distance < best_distance {
-                    best_distance = distance;
+                let vertical_distance = ((y as f32 + 0.5) - self.height as f32 * 0.5).abs();
+                if x < best_x || (x == best_x && vertical_distance < best_vertical_distance) {
+                    best_x = x;
+                    best_vertical_distance = vertical_distance;
                     best_tile = Some(tile);
                 }
             }
@@ -681,5 +681,31 @@ mod tests {
         assert!(is_barracks_layer("Barracks"));
         assert!(is_barracks_layer(" barracks "));
         assert!(!is_barracks_layer("Barracks markers"));
+    }
+
+    #[test]
+    fn default_spawn_prefers_leftmost_valid_preferred_tile() {
+        let map = ImportedMap::load();
+        let spawn = map.default_spawn_point_for(vec2(16.0, 16.0));
+
+        for y in 0..map.height as i32 {
+            for x in 0..map.width as i32 {
+                let tile = ivec2(x, y);
+                let Some(idx) = map.tile_index(tile) else {
+                    continue;
+                };
+                if !map.preferred_spawn_tiles[idx] {
+                    continue;
+                }
+
+                let center = map.tile_center(tile);
+                let rect = Rect::new(center.x - 8.0, center.y - 8.0, 16.0, 16.0);
+                if map.collides_rect(rect) {
+                    continue;
+                }
+
+                assert!(tile.x as f32 * map.tile_size + map.tile_size * 0.5 >= spawn.x);
+            }
+        }
     }
 }
