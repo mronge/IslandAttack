@@ -1,10 +1,7 @@
-use crate::constants::{MAP_PATH, MAP_SPRITESHEET_PATH};
 use crate::entities::EnemyKind;
-use image::ImageReader;
 use macroquad::prelude::{IVec2, Rect, Vec2, ivec2, vec2};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
-use std::fs;
 
 #[derive(Clone, Debug)]
 pub struct MapTile {
@@ -79,11 +76,24 @@ struct RawTileAttributes {
 }
 
 impl ImportedMap {
-    pub fn load() -> Self {
-        let raw = fs::read_to_string(MAP_PATH)
-            .unwrap_or_else(|_| panic!("failed to read imported map: {MAP_PATH}"));
-        let raw_map: RawMap = serde_json::from_str(&raw)
-            .unwrap_or_else(|_| panic!("failed to parse map: {MAP_PATH}"));
+    #[cfg(test)]
+    pub fn test_load() -> Self {
+        let map_json = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sprites/map.json"
+        ))
+        .expect("failed to read map.json for test");
+        let spritesheet_bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sprites/spritesheet.png"
+        ))
+        .expect("failed to read spritesheet.png for test");
+        Self::load(&map_json, &spritesheet_bytes)
+    }
+
+    pub fn load(map_json: &str, spritesheet_bytes: &[u8]) -> Self {
+        let raw_map: RawMap =
+            serde_json::from_str(map_json).expect("failed to parse map JSON");
 
         let mut layers = Vec::new();
         let mut enemy_spawns = Vec::new();
@@ -155,8 +165,13 @@ impl ImportedMap {
         }
 
         let tile_size_px = usize::from(raw_map.tile_size);
-        let collision_pixels =
-            build_collision_pixels(raw_map.map_width, raw_map.map_height, tile_size_px, &layers);
+        let collision_pixels = build_collision_pixels(
+            raw_map.map_width,
+            raw_map.map_height,
+            tile_size_px,
+            &layers,
+            spritesheet_bytes,
+        );
 
         Self {
             width: raw_map.map_width,
@@ -477,11 +492,10 @@ fn build_collision_pixels(
     map_height: usize,
     tile_size: usize,
     layers: &[MapLayer],
+    spritesheet_bytes: &[u8],
 ) -> Vec<bool> {
-    let atlas = ImageReader::open(MAP_SPRITESHEET_PATH)
-        .unwrap_or_else(|_| panic!("failed to open map spritesheet: {MAP_SPRITESHEET_PATH}"))
-        .decode()
-        .unwrap_or_else(|_| panic!("failed to decode map spritesheet: {MAP_SPRITESHEET_PATH}"))
+    let atlas = image::load_from_memory(spritesheet_bytes)
+        .expect("failed to decode spritesheet for collision pixels")
         .to_rgba8();
     let atlas_cols = (atlas.width() as usize / tile_size).max(1);
     let pixel_width = map_width * tile_size;
@@ -725,7 +739,7 @@ mod tests {
 
     #[test]
     fn default_spawn_prefers_leftmost_valid_preferred_tile() {
-        let map = ImportedMap::load();
+        let map = ImportedMap::test_load();
         let spawn = map.default_spawn_point_for(vec2(16.0, 16.0));
 
         for y in 0..map.height as i32 {

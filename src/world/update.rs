@@ -809,7 +809,7 @@ mod tests {
 
     #[test]
     fn soldier_pursuit_requires_alert_range() {
-        let map = ImportedMap::load();
+        let map = ImportedMap::test_load();
         let enemy_pos = vec2(64.0, 64.0);
         let player_pos = enemy_pos + vec2(SOLDIER_ALERT_RANGE + 1.0, 0.0);
 
@@ -833,7 +833,7 @@ mod tests {
 
     #[test]
     fn moving_into_full_tile_is_blocked() {
-        let map = ImportedMap::load();
+        let map = ImportedMap::test_load();
         let enemy = Enemy::new(Vec2::ZERO);
         let tiles = walkable_tiles(&map, enemy.size(), 2);
         let target_tile = tiles[0];
@@ -857,7 +857,7 @@ mod tests {
 
     #[test]
     fn moving_within_same_tile_ignores_cap() {
-        let map = ImportedMap::load();
+        let map = ImportedMap::test_load();
         let enemy = Enemy::new(Vec2::ZERO);
         let tile = walkable_tiles(&map, enemy.size(), 1)[0];
         let center = map.tile_center(tile);
@@ -880,7 +880,7 @@ mod tests {
 
     #[test]
     fn destroyed_barracks_release_four_pows_once() {
-        let map = ImportedMap::load();
+        let map = ImportedMap::test_load();
         let tile = barracks_tile_with_four_release_slots(&map);
         let mut barracks = Barracks::new(map.tile_center(tile));
         barracks.destroy();
@@ -913,7 +913,7 @@ mod tests {
 
     #[test]
     fn adjacent_barracks_still_release_four_pows() {
-        let map = ImportedMap::load();
+        let map = ImportedMap::test_load();
         let barracks_list: Vec<_> = map
             .barracks_spawns()
             .iter()
@@ -947,7 +947,7 @@ mod tests {
 
     #[test]
     fn released_pows_use_front_of_barracks_when_it_has_space() {
-        let map = ImportedMap::load();
+        let map = ImportedMap::test_load();
         let tile = barracks_tile_with_four_front_release_slots(&map);
         let center = map.tile_center(tile);
         let mut barracks = Barracks::new(center);
@@ -970,7 +970,7 @@ mod tests {
 
     #[test]
     fn released_pows_do_not_spawn_inside_enemies() {
-        let map = ImportedMap::load();
+        let map = ImportedMap::test_load();
         let tile = walkable_tiles(&map, vec2(64.0, 64.0), 1)[0];
         let center = map.tile_center(tile);
         let mut barracks = Barracks::new(center);
@@ -997,7 +997,7 @@ mod tests {
 
     #[test]
     fn mission_finishes_when_jeep_is_parked_on_goal_tile() {
-        let mut world = World::load();
+        let mut world = World::test_load();
         let goal_tile = first_goal_tile(&world.map);
         world.player.pos = world.map.tile_center(goal_tile);
         world.player.prev_pos = world.player.pos;
@@ -1014,7 +1014,7 @@ mod tests {
 
     #[test]
     fn mission_does_not_finish_before_goal_tile_is_reached() {
-        let mut world = World::load();
+        let mut world = World::test_load();
         world.rescued_pows = world.total_pows;
 
         world.update(PlayerCommand::default(), 1.0 / 60.0);

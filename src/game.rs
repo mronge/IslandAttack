@@ -8,14 +8,15 @@ use macroquad::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AppMode {
+    SplashLoading,
     Splash,
     Loading,
     Playing,
 }
 
 pub struct Game {
-    splash_screen: Texture2D,
-    theme_music: Sound,
+    splash_screen: Option<Texture2D>,
+    theme_music: Option<Sound>,
     pub assets: Option<Assets>,
     pub world: Option<World>,
     pub renderer: Renderer,
@@ -25,15 +26,16 @@ pub struct Game {
     pub show_collision_boxes: bool,
     mission_was_complete: bool,
     mode: AppMode,
+    skip_splash: bool,
     pending_result_sound: Option<MissionResult>,
     active_result_sound: Option<Sound>,
 }
 
 impl Game {
-    pub fn new(splash_screen: Texture2D, theme_music: Sound, skip_splash: bool) -> Self {
+    pub fn new(skip_splash: bool) -> Self {
         Self {
-            splash_screen,
-            theme_music,
+            splash_screen: None,
+            theme_music: None,
             assets: None,
             world: None,
             renderer: Renderer::new(),
@@ -42,22 +44,47 @@ impl Game {
             accumulator: 0.0,
             show_collision_boxes: false,
             mission_was_complete: false,
-            mode: if skip_splash {
-                AppMode::Loading
-            } else {
-                AppMode::Splash
-            },
+            mode: AppMode::SplashLoading,
+            skip_splash,
             pending_result_sound: None,
             active_result_sound: None,
         }
+    }
+
+    pub fn needs_theme_load(&self) -> bool {
+        self.theme_music.is_none()
+    }
+
+    pub fn finish_theme_load(&mut self, theme_music: Sound) {
+        play_sound(
+            &theme_music,
+            PlaySoundParams {
+                looped: true,
+                volume: 0.6,
+            },
+        );
+        self.theme_music = Some(theme_music);
+    }
+
+    pub fn needs_splash_load(&self) -> bool {
+        self.mode == AppMode::SplashLoading && self.splash_screen.is_none()
+    }
+
+    pub fn finish_splash_load(&mut self, texture: Texture2D) {
+        self.splash_screen = Some(texture);
+        self.mode = if self.skip_splash {
+            AppMode::Loading
+        } else {
+            AppMode::Splash
+        };
     }
 
     pub fn needs_runtime_load(&self) -> bool {
         self.mode == AppMode::Loading && self.assets.is_none()
     }
 
-    pub fn finish_loading(&mut self, assets: Assets) {
-        let world = World::load();
+    pub fn finish_loading(&mut self, assets: Assets, map_json: &str, spritesheet_bytes: &[u8]) {
+        let world = World::load(map_json, spritesheet_bytes);
         let play_camera_center = camera::initial_play_camera_center(&world);
 
         self.mission_was_complete = world.mission_is_complete();
@@ -86,6 +113,7 @@ impl Game {
 
     pub fn frame(&mut self, frame_dt: f32) {
         match self.mode {
+            AppMode::SplashLoading => return,
             AppMode::Splash => {
                 if is_key_pressed(KeyCode::Space) {
                     self.mode = AppMode::Loading;
@@ -109,13 +137,15 @@ impl Game {
             if let Some(sound) = &self.active_result_sound {
                 stop_sound(sound);
             }
-            play_sound(
-                &self.theme_music,
-                PlaySoundParams {
-                    looped: true,
-                    volume: 0.6,
-                },
-            );
+            if let Some(theme_music) = &self.theme_music {
+                play_sound(
+                    theme_music,
+                    PlaySoundParams {
+                        looped: true,
+                        volume: 0.6,
+                    },
+                );
+            }
             self.active_result_sound = None;
             self.pending_result_sound = None;
             self.mission_was_complete = false;
@@ -144,19 +174,26 @@ impl Game {
 
         if !self.mission_was_complete && world.mission_is_complete() {
             self.mission_was_complete = true;
-            stop_sound(&self.theme_music);
+            if let Some(theme_music) = &self.theme_music {
+                stop_sound(theme_music);
+            }
             self.pending_result_sound = world.mission_result();
         }
     }
 
     pub fn draw(&mut self) {
         match self.mode {
+            AppMode::SplashLoading => return,
             AppMode::Splash => {
-                self.renderer.draw_splash(&self.splash_screen, false);
+                if let Some(splash_screen) = &self.splash_screen {
+                    self.renderer.draw_splash(splash_screen, false);
+                }
                 return;
             }
             AppMode::Loading => {
-                self.renderer.draw_splash(&self.splash_screen, true);
+                if let Some(splash_screen) = &self.splash_screen {
+                    self.renderer.draw_splash(splash_screen, true);
+                }
                 self.accumulator = 0.0;
                 return;
             }

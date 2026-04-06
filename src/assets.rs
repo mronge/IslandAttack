@@ -328,7 +328,7 @@ impl Assets {
 }
 
 pub async fn load_splash_screen() -> Texture2D {
-    let splash_screen = load_texture(crate::constants::SPLASH_SCREEN_PATH)
+    let tex = load_texture(crate::constants::SPLASH_SCREEN_PATH)
         .await
         .unwrap_or_else(|_| {
             panic!(
@@ -336,8 +336,26 @@ pub async fn load_splash_screen() -> Texture2D {
                 crate::constants::SPLASH_SCREEN_PATH
             )
         });
-    splash_screen.set_filter(FilterMode::Nearest);
-    splash_screen
+    tex.set_filter(FilterMode::Nearest);
+    tex
+}
+
+pub async fn load_map_data() -> (String, Vec<u8>) {
+    let map_bytes = load_file(crate::constants::MAP_PATH)
+        .await
+        .unwrap_or_else(|_| panic!("failed to load map: {}", crate::constants::MAP_PATH));
+    let map_json = String::from_utf8(map_bytes).expect("map JSON is not valid UTF-8");
+
+    let spritesheet_bytes = load_file(crate::constants::MAP_SPRITESHEET_PATH)
+        .await
+        .unwrap_or_else(|_| {
+            panic!(
+                "failed to load spritesheet: {}",
+                crate::constants::MAP_SPRITESHEET_PATH
+            )
+        });
+
+    (map_json, spritesheet_bytes)
 }
 
 pub async fn load_theme_music() -> Sound {

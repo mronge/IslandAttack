@@ -23,8 +23,23 @@ pub struct World {
 }
 
 impl World {
-    pub fn load() -> Self {
-        let map = ImportedMap::load();
+    #[cfg(test)]
+    pub fn test_load() -> Self {
+        let map_json = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sprites/map.json"
+        ))
+        .expect("failed to read map.json for test");
+        let spritesheet_bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sprites/spritesheet.png"
+        ))
+        .expect("failed to read spritesheet.png for test");
+        Self::load(&map_json, &spritesheet_bytes)
+    }
+
+    pub fn load(map_json: &str, spritesheet_bytes: &[u8]) -> Self {
+        let map = ImportedMap::load(map_json, spritesheet_bytes);
         let probe = Jeep::new(Vec2::ZERO);
         let player_spawn = map.default_spawn_point_for(probe.size());
         let enemies = build_enemies(&map);
@@ -177,7 +192,7 @@ mod tests {
 
     #[test]
     fn two_soldier_spawn_points_are_separated_within_the_tile() {
-        let map = ImportedMap::load();
+        let map = ImportedMap::test_load();
         let spawn = EnemySpawn {
             tile: ivec2(0, 0),
             kind: EnemyKind::Soldier,
@@ -192,7 +207,7 @@ mod tests {
 
     #[test]
     fn player_reset_restores_hostages_and_barracks() {
-        let mut world = World::load();
+        let mut world = World::test_load();
         world.rescued_pows = 3;
         world.lost_pows = 1;
         let barracks_before = world.barracks.len();
@@ -233,7 +248,7 @@ mod tests {
 
     #[test]
     fn mission_succeeds_at_goal_only_when_every_pow_is_rescued() {
-        let mut world = World::load();
+        let mut world = World::test_load();
         world.rescued_pows = world.total_pows;
 
         world.finish_mission_at_goal();
@@ -243,7 +258,7 @@ mod tests {
 
     #[test]
     fn mission_fails_at_goal_when_any_pow_is_not_rescued() {
-        let mut world = World::load();
+        let mut world = World::test_load();
         world.lost_pows = 2;
         world.rescued_pows = world.total_pows.saturating_sub(2);
 

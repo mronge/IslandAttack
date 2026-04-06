@@ -7,9 +7,8 @@ mod render;
 mod world;
 
 use assets::Assets;
-use assets::{load_result_sound, load_splash_screen, load_theme_music};
+use assets::{load_map_data, load_result_sound, load_splash_screen, load_theme_music};
 use game::Game;
-use macroquad::audio::{PlaySoundParams, play_sound};
 use macroquad::prelude::*;
 
 fn window_conf() -> Conf {
@@ -26,33 +25,34 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let skip_splash = std::env::args().any(|arg| arg == "--skip-splash");
-    let splash_screen = load_splash_screen().await;
-    let theme_music = load_theme_music().await;
-    play_sound(
-        &theme_music,
-        PlaySoundParams {
-            looped: true,
-            volume: 0.6,
-        },
-    );
-    let mut game = Game::new(splash_screen, theme_music, skip_splash);
+    let mut game = Game::new(skip_splash);
 
     loop {
+        let frame_dt = get_frame_time().min(0.25);
+        game.frame(frame_dt);
+        game.draw();
+
+        if game.needs_splash_load() {
+            let splash = load_splash_screen().await;
+            game.finish_splash_load(splash);
+        }
+
+        if game.needs_theme_load() {
+            let theme_music = load_theme_music().await;
+            game.finish_theme_load(theme_music);
+        }
+
         if game.needs_runtime_load() {
             let assets = Assets::load().await;
-            game.finish_loading(assets);
-            continue;
+            let (map_json, spritesheet_bytes) = load_map_data().await;
+            game.finish_loading(assets, &map_json, &spritesheet_bytes);
         }
 
         if let Some(result) = game.take_pending_result_sound() {
             let sound = load_result_sound(result).await;
             game.play_result_sound(sound);
-            continue;
         }
 
-        let frame_dt = get_frame_time().min(0.25);
-        game.frame(frame_dt);
-        game.draw();
         next_frame().await;
     }
 }
