@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 pub struct PlayerCommand {
     pub move_dir: Option<Direction>,
     pub fire: bool,
-    pub restart: bool,
 }
 
 pub fn gather_player_command() -> PlayerCommand {
@@ -25,6 +24,5 @@ pub fn gather_player_command() -> PlayerCommand {
     PlayerCommand {
         move_dir,
         fire: is_key_down(KeyCode::Space),
-        restart: is_key_pressed(KeyCode::R),
     }
 }

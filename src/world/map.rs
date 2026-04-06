@@ -1,87 +1,195 @@
-use crate::constants::TILE_SIZE;
+use crate::entities::EnemyKind;
 use macroquad::prelude::{IVec2, Rect, Vec2, ivec2, vec2};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TileKind {
-    Grass,
-    Road,
-    Water,
-    Wall,
-    Rubble,
-    EnemySpawn,
-    HostageCage,
-    Extraction,
-    PlayerSpawn,
+#[derive(Clone, Debug)]
+pub struct MapTile {
+    pub atlas_id: u16,
+    pub pos: IVec2,
 }
 
 #[derive(Clone, Debug)]
-pub struct Tile {
-    pub kind: TileKind,
-    pub hp: u8,
-}
-
-impl Tile {
-    pub fn new(kind: TileKind) -> Self {
-        Self {
-            hp: kind.max_hp(),
-            kind,
-        }
-    }
-}
-
-impl TileKind {
-    pub fn solid(self) -> bool {
-        matches!(self, Self::Water | Self::Wall | Self::HostageCage)
-    }
-
-    pub fn destructible(self) -> bool {
-        matches!(self, Self::Wall | Self::HostageCage)
-    }
-
-    pub fn max_hp(self) -> u8 {
-        match self {
-            Self::Wall => 3,
-            Self::HostageCage => 2,
-            _ => 0,
-        }
-    }
-
-    pub fn destroyed_variant(self) -> Self {
-        match self {
-            Self::Wall | Self::HostageCage => Self::Rubble,
-            _ => self,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct LevelData {
-    pub width: usize,
-    pub height: usize,
-    pub tiles: Vec<TileKind>,
+pub struct MapLayer {
+    pub name: String,
+    pub collider: bool,
+    pub tiles: Vec<MapTile>,
 }
 
 #[derive(Clone, Debug)]
-pub struct TileMap {
+pub struct ImportedMap {
     pub width: usize,
     pub height: usize,
-    pub tiles: Vec<Tile>,
+    pub tile_size: f32,
+    pub layers: Vec<MapLayer>,
+    enemy_spawns: Vec<EnemySpawn>,
+    barracks_spawns: Vec<BarracksSpawn>,
+    goal_tiles: Vec<bool>,
+    preferred_spawn_tiles: Vec<bool>,
+    collision_pixels: Vec<bool>,
 }
 
-impl TileMap {
-    pub fn from_level_data(level: &LevelData) -> Self {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EnemySpawn {
+    pub tile: IVec2,
+    pub kind: EnemyKind,
+    pub count: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BarracksSpawn {
+    pub top_left: IVec2,
+}
+
+#[derive(Deserialize)]
+struct RawMap {
+    #[serde(rename = "mapWidth")]
+    map_width: usize,
+    #[serde(rename = "mapHeight")]
+    map_height: usize,
+    #[serde(rename = "tileSize")]
+    tile_size: u16,
+    layers: Vec<RawLayer>,
+}
+
+#[derive(Deserialize)]
+struct RawLayer {
+    name: String,
+    #[serde(default)]
+    collider: bool,
+    tiles: Vec<RawTile>,
+}
+
+#[derive(Deserialize)]
+struct RawTile {
+    id: String,
+    x: i32,
+    y: i32,
+    #[serde(default)]
+    attributes: RawTileAttributes,
+}
+
+#[derive(Default, Deserialize)]
+struct RawTileAttributes {
+    #[serde(default)]
+    goal: bool,
+}
+
+impl ImportedMap {
+    #[cfg(test)]
+    pub fn test_load() -> Self {
+        let map_json = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sprites/map.json"
+        ))
+        .expect("failed to read map.json for test");
+        let spritesheet_bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sprites/spritesheet.png"
+        ))
+        .expect("failed to read spritesheet.png for test");
+        Self::load(&map_json, &spritesheet_bytes)
+    }
+
+    pub fn load(map_json: &str, spritesheet_bytes: &[u8]) -> Self {
+        let raw_map: RawMap =
+            serde_json::from_str(map_json).expect("failed to parse map JSON");
+
+        let mut layers = Vec::new();
+        let mut enemy_spawns = Vec::new();
+        let mut barracks_spawns = Vec::new();
+        let mut goal_tiles = vec![false; raw_map.map_width * raw_map.map_height];
+
+        for layer in raw_map.layers {
+            if is_enemy_spawn_layer(&layer.name) {
+                enemy_spawns.extend(layer.tiles.into_iter().map(enemy_spawn_from_raw_tile));
+                continue;
+            }
+            if is_barracks_layer(&layer.name) {
+                barracks_spawns.extend(barracks_spawns_from_raw_tiles(layer.tiles));
+                continue;
+            }
+
+            let mut tiles = Vec::new();
+            for tile in layer.tiles {
+                let pos = ivec2(tile.x, tile.y);
+                if tile.attributes.goal {
+                    if let Some(idx) = tile_index(raw_map.map_width, raw_map.map_height, pos) {
+                        goal_tiles[idx] = true;
+                    }
+                }
+                tiles.push(MapTile {
+                    atlas_id: tile.id.parse().expect("invalid tile id in imported map"),
+                    pos,
+                });
+            }
+
+            layers.push(MapLayer {
+                name: layer.name,
+                collider: layer.collider,
+                tiles,
+            });
+        }
+
+        let mut preferred_spawn_tiles = vec![false; raw_map.map_width * raw_map.map_height];
+
+        // The exported map order is top-to-bottom, so walk it in reverse and let
+        // upper layers overwrite lower ones to derive spawn preference from the visible tile.
+        for layer in layers.iter().rev() {
+            let is_solid = layer.collider;
+            let is_preferred_spawn =
+                !is_solid && layer_name_matches(&layer.name, &["sand", "ground", "grass"]);
+
+            for tile in &layer.tiles {
+                let Some(idx) = tile_index(raw_map.map_width, raw_map.map_height, tile.pos) else {
+                    continue;
+                };
+
+                preferred_spawn_tiles[idx] = is_preferred_spawn;
+            }
+        }
+
+        if !preferred_spawn_tiles.iter().any(|tile| *tile) {
+            for layer in layers.iter().rev() {
+                if layer.collider {
+                    continue;
+                }
+                for tile in &layer.tiles {
+                    let Some(idx) = tile_index(raw_map.map_width, raw_map.map_height, tile.pos)
+                    else {
+                        continue;
+                    };
+                    preferred_spawn_tiles[idx] = true;
+                }
+            }
+        }
+
+        let tile_size_px = usize::from(raw_map.tile_size);
+        let collision_pixels = build_collision_pixels(
+            raw_map.map_width,
+            raw_map.map_height,
+            tile_size_px,
+            &layers,
+            spritesheet_bytes,
+        );
+
         Self {
-            width: level.width,
-            height: level.height,
-            tiles: level.tiles.iter().copied().map(Tile::new).collect(),
+            width: raw_map.map_width,
+            height: raw_map.map_height,
+            tile_size: f32::from(raw_map.tile_size),
+            layers,
+            enemy_spawns,
+            barracks_spawns,
+            goal_tiles,
+            preferred_spawn_tiles,
+            collision_pixels,
         }
     }
 
     pub fn dimensions_px(&self) -> Vec2 {
         vec2(
-            self.width as f32 * TILE_SIZE,
-            self.height as f32 * TILE_SIZE,
+            self.width as f32 * self.tile_size,
+            self.height as f32 * self.tile_size,
         )
     }
 
@@ -89,58 +197,32 @@ impl TileMap {
         tile.x >= 0 && tile.y >= 0 && tile.x < self.width as i32 && tile.y < self.height as i32
     }
 
-    pub fn index(&self, tile: IVec2) -> Option<usize> {
-        if self.in_bounds(tile) {
-            Some(tile.y as usize * self.width + tile.x as usize)
-        } else {
-            None
-        }
-    }
-
-    pub fn tile(&self, tile: IVec2) -> Option<&Tile> {
-        self.index(tile).map(|idx| &self.tiles[idx])
-    }
-
-    pub fn tile_mut(&mut self, tile: IVec2) -> Option<&mut Tile> {
-        self.index(tile).map(move |idx| &mut self.tiles[idx])
-    }
-
-    pub fn tile_kind(&self, tile: IVec2) -> Option<TileKind> {
-        self.tile(tile).map(|tile| tile.kind)
-    }
-
-    pub fn world_to_tile(&self, world: Vec2) -> Option<IVec2> {
-        let tile = ivec2(
-            (world.x / TILE_SIZE).floor() as i32,
-            (world.y / TILE_SIZE).floor() as i32,
-        );
-        self.in_bounds(tile).then_some(tile)
+    pub fn tile_index(&self, tile: IVec2) -> Option<usize> {
+        tile_index(self.width, self.height, tile)
     }
 
     pub fn tile_center(&self, tile: IVec2) -> Vec2 {
         vec2(
-            tile.x as f32 * TILE_SIZE + TILE_SIZE * 0.5,
-            tile.y as f32 * TILE_SIZE + TILE_SIZE * 0.5,
+            tile.x as f32 * self.tile_size + self.tile_size * 0.5,
+            tile.y as f32 * self.tile_size + self.tile_size * 0.5,
         )
     }
 
     pub fn collides_rect(&self, rect: Rect) -> bool {
-        let min = ivec2(
-            (rect.x / TILE_SIZE).floor() as i32,
-            (rect.y / TILE_SIZE).floor() as i32,
-        );
-        let max = ivec2(
-            ((rect.x + rect.w - 0.001) / TILE_SIZE).floor() as i32,
-            ((rect.y + rect.h - 0.001) / TILE_SIZE).floor() as i32,
-        );
+        let pixel_width = self.width * self.tile_size as usize;
+        let pixel_height = self.height * self.tile_size as usize;
+        let min_x = rect.x.floor() as i32;
+        let min_y = rect.y.floor() as i32;
+        let max_x = (rect.x + rect.w - 0.001).floor() as i32;
+        let max_y = (rect.y + rect.h - 0.001).floor() as i32;
 
-        for y in min.y..=max.y {
-            for x in min.x..=max.x {
-                let tile = ivec2(x, y);
-                if !self.in_bounds(tile) {
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                if x < 0 || y < 0 || x >= pixel_width as i32 || y >= pixel_height as i32 {
                     return true;
                 }
-                if self.tile_kind(tile).is_some_and(TileKind::solid) {
+                let idx = y as usize * pixel_width + x as usize;
+                if self.collision_pixels[idx] {
                     return true;
                 }
             }
@@ -149,89 +231,600 @@ impl TileMap {
         false
     }
 
-    pub fn damage_at_world(&mut self, world: Vec2, damage: u8) -> bool {
-        let Some(tile_pos) = self.world_to_tile(world) else {
-            return false;
-        };
+    pub fn collides_point(&self, point: Vec2) -> bool {
+        let pixel_width = self.width * self.tile_size as usize;
+        let pixel_height = self.height * self.tile_size as usize;
+        let x = point.x.floor() as i32;
+        let y = point.y.floor() as i32;
 
-        let Some(tile) = self.tile_mut(tile_pos) else {
-            return false;
-        };
-
-        if tile.kind.destructible() {
-            tile.hp = tile.hp.saturating_sub(damage);
-            if tile.hp == 0 {
-                tile.kind = tile.kind.destroyed_variant();
-            }
+        if x < 0 || y < 0 || x >= pixel_width as i32 || y >= pixel_height as i32 {
             return true;
         }
 
-        tile.kind.solid()
+        self.collision_pixels[y as usize * pixel_width + x as usize]
+    }
+
+    pub fn has_line_of_sight(&self, from: Vec2, to: Vec2) -> bool {
+        let delta = to - from;
+        let distance = delta.length();
+        if distance <= 1.0 {
+            return true;
+        }
+
+        let step = delta / distance;
+        let step_size = 4.0;
+        let steps = (distance / step_size).ceil() as i32;
+
+        for i in 1..steps {
+            let sample = from + step * (i as f32 * step_size);
+            if self.collides_point(sample) {
+                return false;
+            }
+        }
+
+        !self.collides_point(to)
+    }
+
+    pub fn collision_spans_in_rect(&self, rect: Rect) -> Vec<Rect> {
+        let pixel_width = self.width * self.tile_size as usize;
+        let pixel_height = self.height * self.tile_size as usize;
+        let min_x = rect.x.floor().max(0.0) as i32;
+        let min_y = rect.y.floor().max(0.0) as i32;
+        let max_x = (rect.x + rect.w).ceil().min(pixel_width as f32) as i32;
+        let max_y = (rect.y + rect.h).ceil().min(pixel_height as f32) as i32;
+        let mut spans = Vec::new();
+
+        for y in min_y..max_y {
+            let row_start = y as usize * pixel_width;
+            let mut x = min_x;
+
+            while x < max_x {
+                let idx = row_start + x as usize;
+                if !self.collision_pixels[idx] {
+                    x += 1;
+                    continue;
+                }
+
+                let span_start = x;
+                x += 1;
+                while x < max_x && self.collision_pixels[row_start + x as usize] {
+                    x += 1;
+                }
+
+                spans.push(Rect::new(
+                    span_start as f32,
+                    y as f32,
+                    (x - span_start) as f32,
+                    1.0,
+                ));
+            }
+        }
+
+        spans
+    }
+
+    pub fn is_solid(&self, tile: IVec2) -> bool {
+        let Some(idx) = self.tile_index(tile) else {
+            return true;
+        };
+        let tile_size = self.tile_size as usize;
+        let pixel_width = self.width * tile_size;
+        let x0 = (idx % self.width) * tile_size;
+        let y0 = (idx / self.width) * tile_size;
+        for y in 0..tile_size {
+            let row = (y0 + y) * pixel_width + x0;
+            for x in 0..tile_size {
+                if self.collision_pixels[row + x] {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn default_spawn_point_for(&self, size: Vec2) -> Vec2 {
+        let mut best_tile = None;
+        let mut best_x = i32::MAX;
+        let mut best_vertical_distance = f32::MAX;
+
+        for y in 0..self.height as i32 {
+            for x in 0..self.width as i32 {
+                let tile = ivec2(x, y);
+                let Some(idx) = self.tile_index(tile) else {
+                    continue;
+                };
+                if !self.preferred_spawn_tiles[idx] {
+                    continue;
+                }
+
+                let center = self.tile_center(tile);
+                let rect = Rect::new(
+                    center.x - size.x * 0.5,
+                    center.y - size.y * 0.5,
+                    size.x,
+                    size.y,
+                );
+                if self.collides_rect(rect) {
+                    continue;
+                }
+
+                let vertical_distance = ((y as f32 + 0.5) - self.height as f32 * 0.5).abs();
+                if x < best_x || (x == best_x && vertical_distance < best_vertical_distance) {
+                    best_x = x;
+                    best_vertical_distance = vertical_distance;
+                    best_tile = Some(tile);
+                }
+            }
+        }
+
+        best_tile
+            .map(|tile| self.tile_center(tile))
+            .unwrap_or_else(|| self.dimensions_px() * 0.5)
+    }
+
+    pub fn enemy_spawns(&self) -> &[EnemySpawn] {
+        &self.enemy_spawns
+    }
+
+    pub fn barracks_spawns(&self) -> &[BarracksSpawn] {
+        &self.barracks_spawns
+    }
+
+    pub fn is_goal_tile(&self, tile: IVec2) -> bool {
+        self.tile_index(tile)
+            .map(|idx| self.goal_tiles[idx])
+            .unwrap_or(false)
+    }
+
+    pub fn goal_tile_at_point(&self, point: Vec2) -> Option<IVec2> {
+        let tile = ivec2(
+            (point.x / self.tile_size).floor() as i32,
+            (point.y / self.tile_size).floor() as i32,
+        );
+        self.is_goal_tile(tile).then_some(tile)
     }
 }
 
-pub fn default_level() -> LevelData {
-    fn set_rect(
-        tiles: &mut [TileKind],
-        width: usize,
-        x0: usize,
-        y0: usize,
-        w: usize,
-        h: usize,
-        kind: TileKind,
-    ) {
-        for y in y0..(y0 + h) {
-            for x in x0..(x0 + w) {
-                tiles[y * width + x] = kind;
+fn tile_index(width: usize, height: usize, tile: IVec2) -> Option<usize> {
+    (tile.x >= 0 && tile.y >= 0 && tile.x < width as i32 && tile.y < height as i32)
+        .then_some(tile.y as usize * width + tile.x as usize)
+}
+
+fn enemy_spawn_from_raw_tile(tile: RawTile) -> EnemySpawn {
+    match tile.id.as_str() {
+        "0" | "4" => EnemySpawn {
+            tile: ivec2(tile.x, tile.y),
+            kind: EnemyKind::Soldier,
+            count: 1,
+        },
+        "1" | "5" => EnemySpawn {
+            tile: ivec2(tile.x, tile.y),
+            kind: EnemyKind::Soldier,
+            count: 2,
+        },
+        "2" | "6" => EnemySpawn {
+            tile: ivec2(tile.x, tile.y),
+            kind: EnemyKind::Turret,
+            count: 1,
+        },
+        other => panic!("unknown enemy spawn tile id: {other}"),
+    }
+}
+
+fn barracks_spawns_from_raw_tiles(tiles: Vec<RawTile>) -> Vec<BarracksSpawn> {
+    let markers: HashMap<IVec2, String> = tiles
+        .into_iter()
+        .map(|tile| (ivec2(tile.x, tile.y), tile.id))
+        .collect();
+    let mut top_lefts = markers
+        .iter()
+        .filter_map(|(pos, id)| (id == "0").then_some(*pos))
+        .collect::<Vec<_>>();
+    let mut used = HashSet::new();
+    let mut spawns = Vec::new();
+
+    top_lefts.sort_by_key(|pos| (pos.y, pos.x));
+
+    for top_left in top_lefts {
+        let footprint = [
+            (top_left, "0"),
+            (top_left + ivec2(1, 0), "1"),
+            (top_left + ivec2(0, 1), "2"),
+            (top_left + ivec2(1, 1), "3"),
+        ];
+
+        for (pos, expected) in footprint {
+            match markers.get(&pos).map(String::as_str) {
+                Some(id) if id == expected => {
+                    used.insert(pos);
+                }
+                Some(id) => {
+                    panic!(
+                        "invalid barracks marker at ({}, {}): expected id {}, found {}",
+                        pos.x, pos.y, expected, id
+                    );
+                }
+                None => {
+                    panic!(
+                        "missing barracks marker at ({}, {}): expected id {}",
+                        pos.x, pos.y, expected
+                    );
+                }
+            }
+        }
+
+        spawns.push(BarracksSpawn { top_left });
+    }
+
+    if used.len() != markers.len() {
+        let stray = markers
+            .keys()
+            .find(|pos| !used.contains(pos))
+            .copied()
+            .expect("expected a stray barracks marker");
+        panic!(
+            "stray barracks marker at ({}, {}) is not part of a complete 2x2 footprint",
+            stray.x, stray.y
+        );
+    }
+
+    spawns
+}
+
+fn layer_name_matches(name: &str, needles: &[&str]) -> bool {
+    let lower = name.to_ascii_lowercase();
+    needles.iter().any(|needle| lower.contains(needle))
+}
+
+fn is_enemy_spawn_layer(name: &str) -> bool {
+    matches!(
+        name.trim().to_ascii_lowercase().as_str(),
+        "enemy" | "enemies"
+    )
+}
+
+fn is_barracks_layer(name: &str) -> bool {
+    matches!(name.trim().to_ascii_lowercase().as_str(), "barracks")
+}
+
+fn build_collision_pixels(
+    map_width: usize,
+    map_height: usize,
+    tile_size: usize,
+    layers: &[MapLayer],
+    spritesheet_bytes: &[u8],
+) -> Vec<bool> {
+    let atlas = image::load_from_memory(spritesheet_bytes)
+        .expect("failed to decode spritesheet for collision pixels")
+        .to_rgba8();
+    let atlas_cols = (atlas.width() as usize / tile_size).max(1);
+    let pixel_width = map_width * tile_size;
+    let pixel_height = map_height * tile_size;
+    let mut collision_pixels = vec![false; pixel_width * pixel_height];
+    let mut topmost_water_pixels = vec![false; pixel_width * pixel_height];
+    let mut masks = HashMap::<u16, Vec<bool>>::new();
+
+    for layer in layers.iter().rev() {
+        let is_water_layer = layer.collider && layer_name_matches(&layer.name, &["water"]);
+        for tile in &layer.tiles {
+            let Some(_) = tile_index(map_width, map_height, tile.pos) else {
+                continue;
+            };
+
+            let mask = masks
+                .entry(tile.atlas_id)
+                .or_insert_with(|| tile_alpha_mask(&atlas, atlas_cols, tile_size, tile.atlas_id));
+            let world_x = tile.pos.x as usize * tile_size;
+            let world_y = tile.pos.y as usize * tile_size;
+
+            for local_y in 0..tile_size {
+                let src_row = local_y * tile_size;
+                let dst_row = (world_y + local_y) * pixel_width + world_x;
+                for local_x in 0..tile_size {
+                    if mask[src_row + local_x] {
+                        let idx = dst_row + local_x;
+                        collision_pixels[idx] = layer.collider;
+                        topmost_water_pixels[idx] = is_water_layer;
+                    }
+                }
             }
         }
     }
 
-    let width = 44;
-    let height = 40;
-    let mut tiles = vec![TileKind::Grass; width * height];
+    // Shoreline tiles are cliffs. Treat any tile that still shows water after
+    // layering as blocked, and also block the immediately adjacent land tiles
+    // so the collider sits one tile in from the water.
+    let mut water_tiles = vec![false; map_width * map_height];
+    for tile_y in 0..map_height {
+        for tile_x in 0..map_width {
+            let x0 = tile_x * tile_size;
+            let y0 = tile_y * tile_size;
+            let mut has_visible_water = false;
 
-    for y in 0..height {
-        set_rect(&mut tiles, width, 20, y, 4, 1, TileKind::Road);
+            'scan: for local_y in 0..tile_size {
+                let row = (y0 + local_y) * pixel_width + x0;
+                for local_x in 0..tile_size {
+                    if topmost_water_pixels[row + local_x] {
+                        has_visible_water = true;
+                        break 'scan;
+                    }
+                }
+            }
+
+            if has_visible_water {
+                water_tiles[tile_y * map_width + tile_x] = true;
+                for local_y in 0..tile_size {
+                    let row = (y0 + local_y) * pixel_width + x0;
+                    for local_x in 0..tile_size {
+                        collision_pixels[row + local_x] = true;
+                    }
+                }
+            }
+        }
     }
 
-    set_rect(&mut tiles, width, 4, 7, 36, 3, TileKind::Road);
-    set_rect(&mut tiles, width, 6, 28, 32, 3, TileKind::Road);
-    set_rect(&mut tiles, width, 9, 18, 26, 2, TileKind::Road);
+    for tile_y in 0..map_height {
+        for tile_x in 0..map_width {
+            let idx = tile_y * map_width + tile_x;
+            if water_tiles[idx] {
+                continue;
+            }
 
-    set_rect(&mut tiles, width, 2, 3, 8, 8, TileKind::Water);
-    set_rect(&mut tiles, width, 33, 20, 8, 9, TileKind::Water);
+            let touches_water = [
+                (tile_x as i32 - 1, tile_y as i32),
+                (tile_x as i32 + 1, tile_y as i32),
+                (tile_x as i32, tile_y as i32 - 1),
+                (tile_x as i32, tile_y as i32 + 1),
+                (tile_x as i32 - 1, tile_y as i32 - 1),
+                (tile_x as i32 + 1, tile_y as i32 - 1),
+                (tile_x as i32 - 1, tile_y as i32 + 1),
+                (tile_x as i32 + 1, tile_y as i32 + 1),
+            ]
+            .into_iter()
+            .any(|(nx, ny)| {
+                nx >= 0
+                    && ny >= 0
+                    && nx < map_width as i32
+                    && ny < map_height as i32
+                    && water_tiles[ny as usize * map_width + nx as usize]
+            });
 
-    for y in 0..4 {
-        set_rect(&mut tiles, width, 11, y, 9, 1, TileKind::Wall);
-        set_rect(&mut tiles, width, 24, y, 9, 1, TileKind::Wall);
+            if !touches_water {
+                continue;
+            }
+
+            let x0 = tile_x * tile_size;
+            let y0 = tile_y * tile_size;
+            for local_y in 0..tile_size {
+                let row = (y0 + local_y) * pixel_width + x0;
+                for local_x in 0..tile_size {
+                    collision_pixels[row + local_x] = true;
+                }
+            }
+        }
     }
 
-    set_rect(&mut tiles, width, 11, 12, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 29, 13, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 8, 23, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 24, 23, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 15, 33, 2, 2, TileKind::Wall);
-    set_rect(&mut tiles, width, 31, 33, 2, 2, TileKind::Wall);
+    collision_pixels
+}
 
-    tiles[37 * width + 22] = TileKind::PlayerSpawn;
-    set_rect(&mut tiles, width, 21, 1, 2, 2, TileKind::Extraction);
+fn tile_alpha_mask(
+    atlas: &image::RgbaImage,
+    atlas_cols: usize,
+    tile_size: usize,
+    atlas_id: u16,
+) -> Vec<bool> {
+    let mut mask = vec![false; tile_size * tile_size];
+    let tile_x = (atlas_id as usize % atlas_cols) * tile_size;
+    let tile_y = (atlas_id as usize / atlas_cols) * tile_size;
 
-    tiles[15 * width + 16] = TileKind::HostageCage;
-    tiles[17 * width + 26] = TileKind::HostageCage;
-    tiles[27 * width + 12] = TileKind::HostageCage;
-    tiles[29 * width + 29] = TileKind::HostageCage;
+    for y in 0..tile_size {
+        for x in 0..tile_size {
+            let pixel = atlas.get_pixel((tile_x + x) as u32, (tile_y + y) as u32);
+            mask[y * tile_size + x] = pixel[3] > 0;
+        }
+    }
 
-    tiles[10 * width + 14] = TileKind::EnemySpawn;
-    tiles[10 * width + 30] = TileKind::EnemySpawn;
-    tiles[20 * width + 9] = TileKind::EnemySpawn;
-    tiles[21 * width + 27] = TileKind::EnemySpawn;
-    tiles[31 * width + 17] = TileKind::EnemySpawn;
-    tiles[31 * width + 33] = TileKind::EnemySpawn;
+    mask
+}
 
-    LevelData {
-        width,
-        height,
-        tiles,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_enemy_spawn_marker_ids() {
+        assert_eq!(
+            enemy_spawn_from_raw_tile(RawTile {
+                id: "4".to_owned(),
+                x: 1,
+                y: 2,
+                attributes: RawTileAttributes::default(),
+            }),
+            EnemySpawn {
+                tile: ivec2(1, 2),
+                kind: EnemyKind::Soldier,
+                count: 1,
+            }
+        );
+        assert_eq!(
+            enemy_spawn_from_raw_tile(RawTile {
+                id: "5".to_owned(),
+                x: 3,
+                y: 4,
+                attributes: RawTileAttributes::default(),
+            }),
+            EnemySpawn {
+                tile: ivec2(3, 4),
+                kind: EnemyKind::Soldier,
+                count: 2,
+            }
+        );
+        assert_eq!(
+            enemy_spawn_from_raw_tile(RawTile {
+                id: "6".to_owned(),
+                x: 5,
+                y: 6,
+                attributes: RawTileAttributes::default(),
+            }),
+            EnemySpawn {
+                tile: ivec2(5, 6),
+                kind: EnemyKind::Turret,
+                count: 1,
+            }
+        );
+        assert_eq!(
+            enemy_spawn_from_raw_tile(RawTile {
+                id: "1".to_owned(),
+                x: 7,
+                y: 8,
+                attributes: RawTileAttributes::default(),
+            })
+            .count,
+            2
+        );
+    }
+
+    #[test]
+    fn recognizes_enemy_spawn_layer_names() {
+        assert!(is_enemy_spawn_layer("Enemy"));
+        assert!(is_enemy_spawn_layer("Enemies"));
+        assert!(is_enemy_spawn_layer(" enemies "));
+        assert!(!is_enemy_spawn_layer("Land enemies"));
+        assert!(!is_enemy_spawn_layer("Enemy markers"));
+    }
+
+    #[test]
+    fn parses_barracks_spawn_blocks() {
+        let spawns = barracks_spawns_from_raw_tiles(vec![
+            RawTile {
+                id: "0".to_owned(),
+                x: 10,
+                y: 11,
+                attributes: RawTileAttributes::default(),
+            },
+            RawTile {
+                id: "1".to_owned(),
+                x: 11,
+                y: 11,
+                attributes: RawTileAttributes::default(),
+            },
+            RawTile {
+                id: "2".to_owned(),
+                x: 10,
+                y: 12,
+                attributes: RawTileAttributes::default(),
+            },
+            RawTile {
+                id: "3".to_owned(),
+                x: 11,
+                y: 12,
+                attributes: RawTileAttributes::default(),
+            },
+        ]);
+
+        assert_eq!(
+            spawns,
+            vec![BarracksSpawn {
+                top_left: ivec2(10, 11)
+            }]
+        );
+    }
+
+    #[test]
+    fn recognizes_barracks_layer_name() {
+        assert!(is_barracks_layer("Barracks"));
+        assert!(is_barracks_layer(" barracks "));
+        assert!(!is_barracks_layer("Barracks markers"));
+    }
+
+    #[test]
+    fn default_spawn_prefers_leftmost_valid_preferred_tile() {
+        let map = ImportedMap::test_load();
+        let spawn = map.default_spawn_point_for(vec2(16.0, 16.0));
+
+        for y in 0..map.height as i32 {
+            for x in 0..map.width as i32 {
+                let tile = ivec2(x, y);
+                let Some(idx) = map.tile_index(tile) else {
+                    continue;
+                };
+                if !map.preferred_spawn_tiles[idx] {
+                    continue;
+                }
+
+                let center = map.tile_center(tile);
+                let rect = Rect::new(center.x - 8.0, center.y - 8.0, 16.0, 16.0);
+                if map.collides_rect(rect) {
+                    continue;
+                }
+
+                assert!(tile.x as f32 * map.tile_size + map.tile_size * 0.5 >= spawn.x);
+            }
+        }
+    }
+
+    #[test]
+    fn parses_goal_tile_attributes() {
+        let raw_map = RawMap {
+            map_width: 2,
+            map_height: 2,
+            tile_size: 32,
+            layers: vec![RawLayer {
+                name: "Land accents".to_owned(),
+                collider: false,
+                tiles: vec![
+                    RawTile {
+                        id: "1".to_owned(),
+                        x: 0,
+                        y: 0,
+                        attributes: RawTileAttributes::default(),
+                    },
+                    RawTile {
+                        id: "2".to_owned(),
+                        x: 1,
+                        y: 0,
+                        attributes: RawTileAttributes { goal: true },
+                    },
+                ],
+            }],
+        };
+
+        let mut layers = Vec::new();
+        let mut goal_tiles = vec![false; raw_map.map_width * raw_map.map_height];
+        for layer in raw_map.layers {
+            let mut tiles = Vec::new();
+            for tile in layer.tiles {
+                let pos = ivec2(tile.x, tile.y);
+                if tile.attributes.goal {
+                    goal_tiles[tile_index(raw_map.map_width, raw_map.map_height, pos).unwrap()] =
+                        true;
+                }
+                tiles.push(MapTile {
+                    atlas_id: tile.id.parse().unwrap(),
+                    pos,
+                });
+            }
+            layers.push(MapLayer {
+                name: layer.name,
+                collider: layer.collider,
+                tiles,
+            });
+        }
+
+        let map = ImportedMap {
+            width: raw_map.map_width,
+            height: raw_map.map_height,
+            tile_size: raw_map.tile_size as f32,
+            layers,
+            enemy_spawns: Vec::new(),
+            barracks_spawns: Vec::new(),
+            goal_tiles,
+            preferred_spawn_tiles: vec![false; raw_map.map_width * raw_map.map_height],
+            collision_pixels: vec![false; raw_map.map_width * raw_map.map_height * 32 * 32],
+        };
+
+        assert!(map.is_goal_tile(ivec2(1, 0)));
+        assert_eq!(map.goal_tile_at_point(vec2(48.0, 16.0)), Some(ivec2(1, 0)));
+        assert!(!map.is_goal_tile(ivec2(0, 0)));
     }
 }

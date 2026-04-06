@@ -1,12 +1,6 @@
 use macroquad::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BulletKind {
-    Normal,
-    Rocket,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BulletOwner {
     Player,
     Enemy,
@@ -19,13 +13,12 @@ pub struct Bullet {
     pub vel: Vec2,
     pub ttl: f32,
     pub radius: f32,
-    pub damage: u8,
+    pub damage: i32,
     pub owner: BulletOwner,
-    pub kind: BulletKind,
 }
 
 impl Bullet {
-    pub fn player(pos: Vec2, vel: Vec2) -> Self {
+    pub fn new(pos: Vec2, vel: Vec2, owner: BulletOwner) -> Self {
         Self {
             prev_pos: pos,
             pos,
@@ -33,35 +26,18 @@ impl Bullet {
             ttl: 1.5,
             radius: 2.5,
             damage: 1,
-            owner: BulletOwner::Player,
-            kind: BulletKind::Normal,
+            owner,
         }
     }
 
-    pub fn enemy(pos: Vec2, vel: Vec2) -> Self {
-        Self {
-            prev_pos: pos,
-            pos,
-            vel,
-            ttl: 1.8,
-            radius: 2.5,
-            damage: 1,
-            owner: BulletOwner::Enemy,
-            kind: BulletKind::Normal,
-        }
+    pub fn with_damage(mut self, damage: i32) -> Self {
+        self.damage = damage;
+        self
     }
 
-    pub fn rocket(pos: Vec2, vel: Vec2, damage: u8) -> Self {
-        Self {
-            prev_pos: pos,
-            pos,
-            vel,
-            ttl: 2.2,
-            radius: 4.5,
-            damage,
-            owner: BulletOwner::Enemy,
-            kind: BulletKind::Rocket,
-        }
+    pub fn with_radius(mut self, radius: f32) -> Self {
+        self.radius = radius;
+        self
     }
 
     pub fn render_pos(&self, alpha: f32) -> Vec2 {

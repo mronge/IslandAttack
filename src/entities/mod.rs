@@ -1,14 +1,14 @@
+mod barracks;
 mod bullet;
 mod enemy;
-mod explosion;
-mod hostage;
+mod facing;
 mod jeep;
-mod turret;
+mod pow;
 
-pub use bullet::BulletKind;
-pub use bullet::{Bullet, BulletOwner};
-pub use enemy::{Enemy, EnemyKind, EnemyState};
-pub use explosion::Explosion;
-pub use hostage::{Hostage, HostageState, rider_offset};
+pub use barracks::Barracks;
+pub use bullet::Bullet;
+pub use bullet::BulletOwner;
+pub use enemy::{ActorAnimState, Enemy, EnemyKind};
+pub use facing::{Facing4, Facing8};
 pub use jeep::{Direction, Jeep};
-pub use turret::Turret;
+pub use pow::Pow;

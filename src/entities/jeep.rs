@@ -1,4 +1,4 @@
-use crate::constants::JEEP_SPEED;
+use crate::constants::{JEEP_COLLISION_SCALE, JEEP_SIZE, JEEP_SPEED, PLAYER_MAX_HP};
 use macroquad::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +19,20 @@ impl Direction {
             Self::Right => vec2(1.0, 0.0),
         }
     }
+
+    pub fn from_vec(delta: Vec2) -> Self {
+        if delta.x.abs() > delta.y.abs() {
+            if delta.x >= 0.0 {
+                Self::Right
+            } else {
+                Self::Left
+            }
+        } else if delta.y >= 0.0 {
+            Self::Down
+        } else {
+            Self::Up
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -30,8 +44,7 @@ pub struct Jeep {
     pub speed: f32,
     pub fire_cooldown: f32,
     pub hp: i32,
-    pub invuln_timer: f32,
-    pub rider_capacity: usize,
+    pub max_hp: i32,
 }
 
 impl Jeep {
@@ -43,14 +56,17 @@ impl Jeep {
             dir: Direction::Up,
             speed: JEEP_SPEED,
             fire_cooldown: 0.0,
-            hp: 3,
-            invuln_timer: 0.0,
-            rider_capacity: 4,
+            hp: PLAYER_MAX_HP,
+            max_hp: PLAYER_MAX_HP,
         }
     }
 
+    pub fn render_size(&self) -> Vec2 {
+        vec2(JEEP_SIZE, JEEP_SIZE)
+    }
+
     pub fn size(&self) -> Vec2 {
-        vec2(30.0, 34.0)
+        self.render_size() * JEEP_COLLISION_SCALE
     }
 
     pub fn render_pos(&self, alpha: f32) -> Vec2 {

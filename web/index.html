@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    >
+    <title>Tiger Prototype</title>
+    <style>
+        html,
+        body,
+        canvas {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: absolute;
+            background: black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="glcanvas" tabindex="1"></canvas>
+    <pre id="status"></pre>
+    <style>
+        #status {
+            display: none;
+            position: fixed;
+            left: 12px;
+            top: 12px;
+            z-index: 10;
+            margin: 0;
+            padding: 8px 10px;
+            max-width: min(720px, calc(100vw - 24px));
+            white-space: pre-wrap;
+            font: 12px/1.4 monospace;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+    </style>
+    <script src="./mq_js_bundle.js"></script>
+    <script>
+        const status = document.getElementById("status");
+        const showStatus = (message) => {
+            if (!status) return;
+            status.style.display = "block";
+            status.textContent = message;
+        };
+        const appendStatus = (message) => {
+            if (!status) return;
+            if (status.style.display === "none") {
+                showStatus(message);
+                return;
+            }
+            status.textContent += `\n${message}`;
+        };
+
+        window.addEventListener("error", (event) => {
+            appendStatus(`JS error: ${event.message}`);
+        });
+        window.addEventListener("unhandledrejection", (event) => {
+            appendStatus(`Promise error: ${event.reason}`);
+        });
+
+        const originalError = console.error.bind(console);
+        console.error = (...args) => {
+            appendStatus(`Console error: ${args.join(" ")}`);
+            originalError(...args);
+        };
+
+        // Wrap WASM exports after loading to prevent cascade panics.
+        // In miniquad's WASM backend, all event handlers (mouse_move,
+        // key_down, frame, etc.) borrow a shared RefCell. If any WASM
+        // call panics, the RefCell borrow is never released (WASM
+        // panics abort without running destructors), poisoning every
+        // subsequent event handler call. This wrapper catches those
+        // errors so only the first real panic is reported.
+        function patchWasmExports() {
+            if (typeof wasm_exports === "undefined" || !wasm_exports) {
+                setTimeout(patchWasmExports, 10);
+                return;
+            }
+            const original = wasm_exports;
+            let wasmDead = false;
+            const wrapped = {};
+            for (const prop of Object.getOwnPropertyNames(original)) {
+                const val = original[prop];
+                if (typeof val === "function") {
+                    wrapped[prop] = function (...args) {
+                        if (wasmDead) return;
+                        try {
+                            return val.apply(original, args);
+                        } catch (e) {
+                            wasmDead = true;
+                            appendStatus(`WASM crash in ${prop}: ${e.message}`);
+                            console.error(`WASM crash in ${prop}:`, e);
+                        }
+                    };
+                } else {
+                    Object.defineProperty(wrapped, prop, {
+                        get() { return original[prop]; },
+                    });
+                }
+            }
+            wasm_exports = wrapped;
+        }
+
+        const webglProbe = document.createElement("canvas");
+        const webgl = webglProbe.getContext("webgl") || webglProbe.getContext("experimental-webgl");
+        if (!webgl) {
+            showStatus("WebGL is unavailable in this browser.\nEnable hardware acceleration or try a browser with WebGL support.");
+        } else {
+            load("tiger.wasm");
+            patchWasmExports();
+        }
+    </script>
+</body>
+</html>
