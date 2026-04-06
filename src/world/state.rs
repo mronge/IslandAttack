@@ -27,39 +27,8 @@ impl World {
         let map = ImportedMap::load();
         let probe = Jeep::new(Vec2::ZERO);
         let player_spawn = map.default_spawn_point_for(probe.size());
-        let mut enemies = Vec::new();
-        let mut barracks = Vec::new();
-
-        for spawn in map.barracks_spawns() {
-            let center = barracks_center(&map, spawn.top_left);
-            let rect = rect_from_center(center, vec2(64.0, 64.0));
-            assert!(
-                !map.collides_rect(rect),
-                "barracks spawn at tile ({}, {}) collides with the map",
-                spawn.top_left.x,
-                spawn.top_left.y
-            );
-            barracks.push(Barracks::new(center));
-        }
-
-        for spawn in map.enemy_spawns() {
-            for pos in enemy_spawn_positions(&map, *spawn) {
-                let rect = Rect::new(
-                    pos.x - spawn.kind.size().x * 0.5,
-                    pos.y - spawn.kind.size().y * 0.5,
-                    spawn.kind.size().x,
-                    spawn.kind.size().y,
-                );
-                assert!(
-                    !map.collides_rect(rect),
-                    "enemy spawn at tile ({}, {}) collides with the map",
-                    spawn.tile.x,
-                    spawn.tile.y
-                );
-
-                enemies.push(Enemy::new_with_kind(pos, spawn.kind));
-            }
-        }
+        let enemies = build_enemies(&map);
+        let barracks = build_barracks(&map);
 
         let total_pows = barracks.len() * crate::constants::POWS_PER_BARRACKS;
 
@@ -79,14 +48,8 @@ impl World {
     }
 
     pub fn reset_player(&mut self) {
-        if self.mission_is_complete() {
-            return;
-        }
-
-        self.lose_rescued_pows();
-        if !self.mission_is_complete() {
-            self.reset_player_state();
-        }
+        self.reset_hostage_progress();
+        self.reset_player_state();
     }
 
     pub fn snapshot_positions(&mut self) {
@@ -123,28 +86,70 @@ impl World {
     }
 
     pub(crate) fn handle_player_death(&mut self) {
-        self.lose_rescued_pows();
+        self.reset_hostage_progress();
         self.reset_player_state();
-    }
-
-    fn lose_rescued_pows(&mut self) {
-        if self.rescued_pows == 0 {
-            return;
-        }
-
-        // POWs already inside the jeep are the only ones lost on a reset or
-        // death. Released POWs still in the world remain available to rescue.
-        self.lost_pows += self.rescued_pows;
-        self.rescued_pows = 0;
     }
 
     fn reset_player_state(&mut self) {
         self.player = Jeep::new(self.player_spawn);
     }
+
+    fn reset_hostage_progress(&mut self) {
+        self.enemies = build_enemies(&self.map);
+        self.barracks = build_barracks(&self.map);
+        self.pows.clear();
+        self.bullets.clear();
+        self.rescued_pows = 0;
+        self.lost_pows = 0;
+        self.mission_result = None;
+    }
 }
 
 fn barracks_center(map: &ImportedMap, top_left: IVec2) -> Vec2 {
     map.tile_center(top_left) + vec2(map.tile_size * 0.5, map.tile_size * 0.5)
+}
+
+fn build_barracks(map: &ImportedMap) -> Vec<Barracks> {
+    let mut barracks = Vec::new();
+
+    for spawn in map.barracks_spawns() {
+        let center = barracks_center(map, spawn.top_left);
+        let rect = rect_from_center(center, vec2(64.0, 64.0));
+        assert!(
+            !map.collides_rect(rect),
+            "barracks spawn at tile ({}, {}) collides with the map",
+            spawn.top_left.x,
+            spawn.top_left.y
+        );
+        barracks.push(Barracks::new(center));
+    }
+
+    barracks
+}
+
+fn build_enemies(map: &ImportedMap) -> Vec<Enemy> {
+    let mut enemies = Vec::new();
+
+    for spawn in map.enemy_spawns() {
+        for pos in enemy_spawn_positions(map, *spawn) {
+            let rect = Rect::new(
+                pos.x - spawn.kind.size().x * 0.5,
+                pos.y - spawn.kind.size().y * 0.5,
+                spawn.kind.size().x,
+                spawn.kind.size().y,
+            );
+            assert!(
+                !map.collides_rect(rect),
+                "enemy spawn at tile ({}, {}) collides with the map",
+                spawn.tile.x,
+                spawn.tile.y
+            );
+
+            enemies.push(Enemy::new_with_kind(pos, spawn.kind));
+        }
+    }
+
+    enemies
 }
 
 fn enemy_spawn_positions(map: &ImportedMap, spawn: crate::world::map::EnemySpawn) -> Vec<Vec2> {
@@ -186,18 +191,44 @@ mod tests {
     }
 
     #[test]
-    fn player_reset_clears_rescued_count_but_keeps_world_state() {
+    fn player_reset_restores_hostages_and_barracks() {
         let mut world = World::load();
         world.rescued_pows = 3;
+        world.lost_pows = 1;
         let barracks_before = world.barracks.len();
+        let enemies_before = world.enemies.len();
+        world.barracks[0].destroy();
+        world.barracks[0].mark_pows_released();
+        world.enemies.pop();
         world.pows.push(Pow::new(vec2(32.0, 32.0), vec2(1.0, 0.0)));
+        world.bullets.push(Bullet::new(
+            vec2(16.0, 16.0),
+            vec2(1.0, 0.0),
+            crate::entities::BulletOwner::Player,
+        ));
+        world.finish_mission_at_goal();
 
         world.reset_player();
 
         assert_eq!(world.rescued_pows, 0);
-        assert_eq!(world.lost_pows, 3);
+        assert_eq!(world.lost_pows, 0);
         assert_eq!(world.barracks.len(), barracks_before);
-        assert_eq!(world.pows.len(), 1);
+        assert_eq!(world.enemies.len(), enemies_before);
+        assert!(
+            world
+                .barracks
+                .iter()
+                .all(|barracks| !barracks.is_destroyed())
+        );
+        assert!(
+            world
+                .barracks
+                .iter()
+                .all(|barracks| !barracks.released_pows)
+        );
+        assert!(world.pows.is_empty());
+        assert!(world.bullets.is_empty());
+        assert_eq!(world.mission_result(), None);
     }
 
     #[test]

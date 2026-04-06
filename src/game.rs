@@ -105,14 +105,27 @@ impl Game {
             .world
             .as_mut()
             .expect("game world should be loaded in playing mode");
-        let mission_active = !world.mission_is_complete();
-
-        if mission_active && is_key_pressed(KeyCode::R) {
+        if is_key_pressed(KeyCode::R) {
+            if let Some(sound) = &self.active_result_sound {
+                stop_sound(sound);
+            }
+            play_sound(
+                &self.theme_music,
+                PlaySoundParams {
+                    looped: true,
+                    volume: 0.6,
+                },
+            );
+            self.active_result_sound = None;
+            self.pending_result_sound = None;
+            self.mission_was_complete = false;
             world.reset_player();
             self.play_camera_center = camera::initial_play_camera_center(world);
             self.prev_play_camera_center = self.play_camera_center;
             self.accumulator = 0.0;
         }
+
+        let mission_active = !world.mission_is_complete();
 
         let live_command = if mission_active {
             gather_player_command()

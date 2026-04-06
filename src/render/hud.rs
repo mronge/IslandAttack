@@ -106,7 +106,11 @@ fn draw_mission_overlay(world: &World, origin: Vec2, dest: Vec2, scale: f32) {
         return;
     };
 
-    let panel_size = vec2(256.0, 86.0) * scale;
+    let panel_size = if result == MissionResult::Failure {
+        vec2(256.0, 106.0) * scale
+    } else {
+        vec2(256.0, 86.0) * scale
+    };
     let panel_pos = origin + (dest - panel_size) * 0.5;
     draw_rectangle(
         panel_pos.x,
@@ -165,6 +169,31 @@ fn draw_mission_overlay(world: &World, origin: Vec2, dest: Vec2, scale: f32) {
         progress_font_size,
         WHITE,
     );
+
+    if result == MissionResult::Failure {
+        draw_retry_prompt(panel_pos, panel_size, scale);
+    }
+}
+
+fn draw_retry_prompt(panel_pos: Vec2, panel_size: Vec2, scale: f32) {
+    let prompt = "Press R to retry";
+    let font_size = (12.0 * scale).max(1.0);
+    let measured = measure_text(prompt, None, font_size as u16, 1.0);
+    let x = panel_pos.x + panel_size.x * 0.5 - measured.width * 0.5;
+    let y = panel_pos.y + panel_size.y - 15.0 * scale;
+    let pulse = ((get_time() as f32 * 2.4).sin() * 0.5 + 0.5).powf(2.2);
+    if pulse < 0.14 {
+        return;
+    }
+
+    draw_text(
+        prompt,
+        x + 1.0 * scale,
+        y + 1.0 * scale,
+        font_size,
+        Color::new(0.0, 0.0, 0.0, pulse * 0.55),
+    );
+    draw_text(prompt, x, y, font_size, Color::new(1.0, 1.0, 1.0, pulse));
 }
 
 fn draw_heart(center: Vec2, size: f32, color: Color) {
