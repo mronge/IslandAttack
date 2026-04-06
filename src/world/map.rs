@@ -27,6 +27,7 @@ pub struct ImportedMap {
     pub layers: Vec<MapLayer>,
     enemy_spawns: Vec<EnemySpawn>,
     barracks_spawns: Vec<BarracksSpawn>,
+    goal_tiles: Vec<bool>,
     preferred_spawn_tiles: Vec<bool>,
     collision_pixels: Vec<bool>,
 }
@@ -67,6 +68,14 @@ struct RawTile {
     id: String,
     x: i32,
     y: i32,
+    #[serde(default)]
+    attributes: RawTileAttributes,
+}
+
+#[derive(Default, Deserialize)]
+struct RawTileAttributes {
+    #[serde(default)]
+    goal: bool,
 }
 
 impl ImportedMap {
@@ -79,6 +88,7 @@ impl ImportedMap {
         let mut layers = Vec::new();
         let mut enemy_spawns = Vec::new();
         let mut barracks_spawns = Vec::new();
+        let mut goal_tiles = vec![false; raw_map.map_width * raw_map.map_height];
 
         for layer in raw_map.layers {
             if is_enemy_spawn_layer(&layer.name) {
@@ -90,17 +100,24 @@ impl ImportedMap {
                 continue;
             }
 
+            let mut tiles = Vec::new();
+            for tile in layer.tiles {
+                let pos = ivec2(tile.x, tile.y);
+                if tile.attributes.goal {
+                    if let Some(idx) = tile_index(raw_map.map_width, raw_map.map_height, pos) {
+                        goal_tiles[idx] = true;
+                    }
+                }
+                tiles.push(MapTile {
+                    atlas_id: tile.id.parse().expect("invalid tile id in imported map"),
+                    pos,
+                });
+            }
+
             layers.push(MapLayer {
                 name: layer.name,
                 collider: layer.collider,
-                tiles: layer
-                    .tiles
-                    .into_iter()
-                    .map(|tile| MapTile {
-                        atlas_id: tile.id.parse().expect("invalid tile id in imported map"),
-                        pos: ivec2(tile.x, tile.y),
-                    })
-                    .collect(),
+                tiles,
             });
         }
 
@@ -148,6 +165,7 @@ impl ImportedMap {
             layers,
             enemy_spawns,
             barracks_spawns,
+            goal_tiles,
             preferred_spawn_tiles,
             collision_pixels,
         }
@@ -335,6 +353,20 @@ impl ImportedMap {
 
     pub fn barracks_spawns(&self) -> &[BarracksSpawn] {
         &self.barracks_spawns
+    }
+
+    pub fn is_goal_tile(&self, tile: IVec2) -> bool {
+        self.tile_index(tile)
+            .map(|idx| self.goal_tiles[idx])
+            .unwrap_or(false)
+    }
+
+    pub fn goal_tile_at_point(&self, point: Vec2) -> Option<IVec2> {
+        let tile = ivec2(
+            (point.x / self.tile_size).floor() as i32,
+            (point.y / self.tile_size).floor() as i32,
+        );
+        self.is_goal_tile(tile).then_some(tile)
     }
 }
 
@@ -592,6 +624,7 @@ mod tests {
                 id: "4".to_owned(),
                 x: 1,
                 y: 2,
+                attributes: RawTileAttributes::default(),
             }),
             EnemySpawn {
                 tile: ivec2(1, 2),
@@ -604,6 +637,7 @@ mod tests {
                 id: "5".to_owned(),
                 x: 3,
                 y: 4,
+                attributes: RawTileAttributes::default(),
             }),
             EnemySpawn {
                 tile: ivec2(3, 4),
@@ -616,6 +650,7 @@ mod tests {
                 id: "6".to_owned(),
                 x: 5,
                 y: 6,
+                attributes: RawTileAttributes::default(),
             }),
             EnemySpawn {
                 tile: ivec2(5, 6),
@@ -628,6 +663,7 @@ mod tests {
                 id: "1".to_owned(),
                 x: 7,
                 y: 8,
+                attributes: RawTileAttributes::default(),
             })
             .count,
             2
@@ -650,21 +686,25 @@ mod tests {
                 id: "0".to_owned(),
                 x: 10,
                 y: 11,
+                attributes: RawTileAttributes::default(),
             },
             RawTile {
                 id: "1".to_owned(),
                 x: 11,
                 y: 11,
+                attributes: RawTileAttributes::default(),
             },
             RawTile {
                 id: "2".to_owned(),
                 x: 10,
                 y: 12,
+                attributes: RawTileAttributes::default(),
             },
             RawTile {
                 id: "3".to_owned(),
                 x: 11,
                 y: 12,
+                attributes: RawTileAttributes::default(),
             },
         ]);
 
@@ -707,5 +747,70 @@ mod tests {
                 assert!(tile.x as f32 * map.tile_size + map.tile_size * 0.5 >= spawn.x);
             }
         }
+    }
+
+    #[test]
+    fn parses_goal_tile_attributes() {
+        let raw_map = RawMap {
+            map_width: 2,
+            map_height: 2,
+            tile_size: 32,
+            layers: vec![RawLayer {
+                name: "Land accents".to_owned(),
+                collider: false,
+                tiles: vec![
+                    RawTile {
+                        id: "1".to_owned(),
+                        x: 0,
+                        y: 0,
+                        attributes: RawTileAttributes::default(),
+                    },
+                    RawTile {
+                        id: "2".to_owned(),
+                        x: 1,
+                        y: 0,
+                        attributes: RawTileAttributes { goal: true },
+                    },
+                ],
+            }],
+        };
+
+        let mut layers = Vec::new();
+        let mut goal_tiles = vec![false; raw_map.map_width * raw_map.map_height];
+        for layer in raw_map.layers {
+            let mut tiles = Vec::new();
+            for tile in layer.tiles {
+                let pos = ivec2(tile.x, tile.y);
+                if tile.attributes.goal {
+                    goal_tiles[tile_index(raw_map.map_width, raw_map.map_height, pos).unwrap()] =
+                        true;
+                }
+                tiles.push(MapTile {
+                    atlas_id: tile.id.parse().unwrap(),
+                    pos,
+                });
+            }
+            layers.push(MapLayer {
+                name: layer.name,
+                collider: layer.collider,
+                tiles,
+            });
+        }
+
+        let map = ImportedMap {
+            width: raw_map.map_width,
+            height: raw_map.map_height,
+            tile_size: raw_map.tile_size as f32,
+            layers,
+            enemy_spawns: Vec::new(),
+            barracks_spawns: Vec::new(),
+            goal_tiles,
+            preferred_spawn_tiles: vec![false; raw_map.map_width * raw_map.map_height],
+            collision_pixels: vec![false; raw_map.map_width * raw_map.map_height * 32 * 32],
+        };
+
+        assert!(map.is_goal_tile(ivec2(1, 0)));
+        assert_eq!(map.goal_tile_at_point(vec2(48.0, 16.0)), Some(ivec2(1, 0)));
+        assert!(!map.is_goal_tile(ivec2(0, 0)));
     }
 }

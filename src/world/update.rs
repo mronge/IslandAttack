@@ -86,6 +86,13 @@ impl World {
             );
             self.player.fire_cooldown = PLAYER_FIRE_COOLDOWN;
         }
+
+        if command.move_dir.is_none()
+            && self.player.vel.length_squared() < 1.0
+            && self.map.goal_tile_at_point(self.player.pos).is_some()
+        {
+            self.finish_mission_at_goal();
+        }
     }
 
     fn update_bullets(&mut self, dt: f32) {
@@ -298,8 +305,6 @@ impl World {
     }
 
     fn update_pows(&mut self, dt: f32) {
-        let mut boarded_this_tick = 0usize;
-
         for pow in &mut self.pows {
             if pow.boarded {
                 continue;
@@ -350,7 +355,6 @@ impl World {
             {
                 pow.boarded = true;
                 self.rescued_pows += 1;
-                boarded_this_tick += 1;
                 continue;
             }
 
@@ -360,10 +364,6 @@ impl World {
             } else {
                 pow.set_animation_state(ActorAnimState::Idle);
             }
-        }
-
-        if boarded_this_tick > 0 {
-            self.resolve_mission_if_complete();
         }
     }
 
@@ -773,6 +773,19 @@ mod tests {
         panic!("expected at least one barracks tile with four open front release slots");
     }
 
+    fn first_goal_tile(map: &ImportedMap) -> IVec2 {
+        for y in 0..map.height as i32 {
+            for x in 0..map.width as i32 {
+                let tile = ivec2(x, y);
+                if map.is_goal_tile(tile) {
+                    return tile;
+                }
+            }
+        }
+
+        panic!("expected at least one goal tile in the map");
+    }
+
     #[test]
     fn soldier_limit_is_two_per_tile() {
         assert_eq!(EnemyKind::Soldier.max_per_tile(), 2);
@@ -980,6 +993,33 @@ mod tests {
                 rect_from_center(enemy.pos, enemy.size()),
             )
         }));
+    }
+
+    #[test]
+    fn mission_finishes_when_jeep_is_parked_on_goal_tile() {
+        let mut world = World::load();
+        let goal_tile = first_goal_tile(&world.map);
+        world.player.pos = world.map.tile_center(goal_tile);
+        world.player.prev_pos = world.player.pos;
+        world.player.vel = Vec2::ZERO;
+        world.rescued_pows = world.total_pows;
+
+        world.update(PlayerCommand::default(), 1.0 / 60.0);
+
+        assert_eq!(
+            world.mission_result(),
+            Some(crate::world::MissionResult::Success)
+        );
+    }
+
+    #[test]
+    fn mission_does_not_finish_before_goal_tile_is_reached() {
+        let mut world = World::load();
+        world.rescued_pows = world.total_pows;
+
+        world.update(PlayerCommand::default(), 1.0 / 60.0);
+
+        assert_eq!(world.mission_result(), None);
     }
 
     #[test]

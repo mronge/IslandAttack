@@ -62,7 +62,6 @@ impl World {
         }
 
         let total_pows = barracks.len() * crate::constants::POWS_PER_BARRACKS;
-        let mission_result = (total_pows == 0).then_some(MissionResult::Success);
 
         Self {
             map,
@@ -75,7 +74,7 @@ impl World {
             total_pows,
             lost_pows: 0,
             player_spawn,
-            mission_result,
+            mission_result: None,
         }
     }
 
@@ -111,30 +110,21 @@ impl World {
         self.mission_result.is_some()
     }
 
-    pub(crate) fn handle_player_death(&mut self) {
-        self.lose_rescued_pows();
-        if !self.mission_is_complete() {
-            self.reset_player_state();
-        } else {
-            self.player.vel = Vec2::ZERO;
-            self.player.fire_cooldown = 0.0;
-        }
-    }
-
-    pub(crate) fn resolve_mission_if_complete(&mut self) {
+    pub(crate) fn finish_mission_at_goal(&mut self) {
         if self.mission_result.is_some() {
             return;
         }
 
-        if self.rescued_pows + self.lost_pows < self.total_pows {
-            return;
-        }
-
-        self.mission_result = Some(if self.lost_pows == 0 {
+        self.mission_result = Some(if self.rescued_pows == self.total_pows {
             MissionResult::Success
         } else {
             MissionResult::Failure
         });
+    }
+
+    pub(crate) fn handle_player_death(&mut self) {
+        self.lose_rescued_pows();
+        self.reset_player_state();
     }
 
     fn lose_rescued_pows(&mut self) {
@@ -146,7 +136,6 @@ impl World {
         // death. Released POWs still in the world remain available to rescue.
         self.lost_pows += self.rescued_pows;
         self.rescued_pows = 0;
-        self.resolve_mission_if_complete();
     }
 
     fn reset_player_state(&mut self) {
@@ -212,22 +201,22 @@ mod tests {
     }
 
     #[test]
-    fn mission_succeeds_only_when_every_pow_survives() {
+    fn mission_succeeds_at_goal_only_when_every_pow_is_rescued() {
         let mut world = World::load();
         world.rescued_pows = world.total_pows;
 
-        world.resolve_mission_if_complete();
+        world.finish_mission_at_goal();
 
         assert_eq!(world.mission_result(), Some(MissionResult::Success));
     }
 
     #[test]
-    fn mission_fails_when_all_pows_are_accounted_for_but_some_were_lost() {
+    fn mission_fails_at_goal_when_any_pow_is_not_rescued() {
         let mut world = World::load();
         world.lost_pows = 2;
         world.rescued_pows = world.total_pows.saturating_sub(2);
 
-        world.resolve_mission_if_complete();
+        world.finish_mission_at_goal();
 
         assert_eq!(world.mission_result(), Some(MissionResult::Failure));
     }
