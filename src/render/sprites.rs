@@ -11,7 +11,7 @@ pub fn draw_world(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     draw_pows(assets, world, top_left, alpha);
     draw_bullets(world, top_left, alpha);
 
-    let jeep_pos = world_to_screen(world.player.render_pos(alpha), top_left);
+    let jeep_pos = snap_screen_pos(world_to_screen(world.player.render_pos(alpha), top_left));
     let jeep_size = world.player.render_size();
     draw_ellipse(
         jeep_pos.x,
@@ -102,7 +102,7 @@ fn draw_collision_tiles(world: &World, top_left: Vec2) {
 fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     let player_pos = world.player.render_pos(alpha);
     for enemy in &world.enemies {
-        let pos = world_to_screen(enemy.render_pos(alpha), top_left);
+        let pos = snap_screen_pos(world_to_screen(enemy.render_pos(alpha), top_left));
         let size = enemy.render_size();
         draw_ellipse(
             pos.x,
@@ -126,7 +126,7 @@ fn draw_enemies(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
 
 fn draw_barracks(assets: &Assets, world: &World, top_left: Vec2) {
     for barracks in &world.barracks {
-        let pos = world_to_screen(barracks.pos, top_left);
+        let pos = snap_screen_pos(world_to_screen(barracks.pos, top_left));
         let size = barracks.render_size();
         draw_ellipse(
             pos.x,
@@ -156,7 +156,7 @@ fn draw_barracks(assets: &Assets, world: &World, top_left: Vec2) {
 
 fn draw_pows(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
     for pow in &world.pows {
-        let pos = world_to_screen(pow.render_pos(alpha), top_left);
+        let pos = snap_screen_pos(world_to_screen(pow.render_pos(alpha), top_left));
         let size = pow.render_size();
         draw_ellipse(
             pos.x,
@@ -172,7 +172,7 @@ fn draw_pows(assets: &Assets, world: &World, top_left: Vec2, alpha: f32) {
 
 fn draw_bullets(world: &World, top_left: Vec2, alpha: f32) {
     for bullet in &world.bullets {
-        let pos = world_to_screen(bullet.render_pos(alpha), top_left);
+        let pos = snap_screen_pos(world_to_screen(bullet.render_pos(alpha), top_left));
         let visual_radius = bullet.radius * 0.5;
         let fill = match bullet.owner {
             BulletOwner::Player => WHITE,
@@ -265,6 +265,10 @@ fn draw_sprite_centered_sized(sprite: &SpriteAsset, center: Vec2, size: Vec2, ti
 
 fn world_to_screen(world_pos: Vec2, top_left: Vec2) -> Vec2 {
     vec2(world_pos.x - top_left.x, world_pos.y - top_left.y)
+}
+
+fn snap_screen_pos(screen_pos: Vec2) -> Vec2 {
+    vec2(screen_pos.x.floor(), screen_pos.y.floor())
 }
 
 fn draw_collision_rect(rect: Rect, top_left: Vec2, fill: Color, outline: Color) {
