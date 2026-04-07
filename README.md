@@ -4,6 +4,8 @@
 
 A top-down pixel-art action game built in Rust inspired by Jackal for NES. Drive a jeep across enemy-held islands, destroy barracks, rescue POWs, and reach the goal to complete each mission.
 
+![Gameplay](gameplay.gif)
+
 ## Play
 
 [Play in your browser](https://mronge.github.io/IslandAttack/) (WebAssembly) or build natively for macOS.
